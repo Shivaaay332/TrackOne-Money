@@ -1,23 +1,18 @@
-// ... existing imports in server.js ...
-const expenseRoutes = require('./routes/expenseRoutes'); 
-const incomeRoutes = require('./routes/incomeRoutes');   
-const udhariRoutes = require('./routes/udhariRoutes');   
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const path = require('path');
+const connectDB = require('./config/db');
+const { initScheduler } = require('./utils/scheduler');
+
+// 1. Route Imports
+const authRoutes = require('./routes/authRoutes');
+const expenseRoutes = require('./routes/expenseRoutes');
+const incomeRoutes = require('./routes/incomeRoutes');
+const udhariRoutes = require('./routes/udhariRoutes');
 const goalRoutes = require('./routes/goalRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes'); 
-const settingsRoutes = require('./routes/settingsRoutes'); 
-
-// ... existing middleware ...
-
-// Mount ALL Routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/expenses', expenseRoutes);
-app.use('/api/v1/income', incomeRoutes);
-app.use('/api/v1/udhari', udhariRoutes);
-app.use('/api/v1/goals', goalRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/settings', settingsRoutes);
-
-// ... rest of server.js (error handling & app.listen) ...
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 // Load Env
 dotenv.config();
@@ -25,9 +20,10 @@ dotenv.config();
 // Connect Database
 connectDB();
 
+// 2. INITIALIZE APP (Must happen before app.use)
 const app = express();
 
-// Middleware
+// 3. Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -35,12 +31,14 @@ app.use(express.urlencoded({ extended: true }));
 // Static folder for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Mount Routes
+// 4. Mount Routes
 app.use('/api/v1/auth', authRoutes);
-// app.use('/api/v1/expenses', expenseRoutes);
-// app.use('/api/v1/income', incomeRoutes);
-// app.use('/api/v1/udhari', udhariRoutes);
-// app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/expenses', expenseRoutes);
+app.use('/api/v1/income', incomeRoutes);
+app.use('/api/v1/udhari', udhariRoutes);
+app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 // Base Route
 app.get('/', (req, res) => {

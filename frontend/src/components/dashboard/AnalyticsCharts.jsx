@@ -74,7 +74,7 @@ const AnalyticsCharts = ({ monthlyTrend, expenseByCategory }) => {
         <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">Expense Breakdown</h3>
         <div className="h-[300px] w-full flex flex-col items-center justify-center">
           {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={pieData}

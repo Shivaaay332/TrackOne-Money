@@ -6,17 +6,17 @@ import { useSelector } from 'react-redux';
 import Sidebar from './components/common/Sidebar';
 import Navbar from './components/common/Navbar';
 
-// Auth Pages (Placeholders for now, will implement in next part)
-const Login = () => <div className="p-10">Login Page (Coming in Part 6)</div>;
-const Register = () => <div className="p-10">Register Page</div>;
-const ForgotPassword = () => <div className="p-10">Forgot Password</div>;
+// Import Actual Auth Pages
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
+import ForgotPassword from './pages/Auth/ForgotPassword';
 
-// Main Pages (Placeholders for now, will implement in next part)
-const Dashboard = () => <div className="p-10 text-2xl">Dashboard Module</div>;
-const Expenses = () => <div className="p-10 text-2xl">Income/Expense Module</div>;
-const Udhari = () => <div className="p-10 text-2xl">Udhari Module</div>;
-const FutureGoals = () => <div className="p-10 text-2xl">Future Goals Module</div>;
-const Settings = () => <div className="p-10 text-2xl">Settings Module</div>;
+// Import Actual Main Pages
+import Dashboard from './pages/Dashboard';
+import Expenses from './pages/Expenses';
+import Udhari from './pages/Udhari';
+import FutureGoals from './pages/FutureGoals';
+import Settings from './pages/Settings';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
