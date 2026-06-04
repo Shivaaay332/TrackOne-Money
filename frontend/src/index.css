@@ -4,25 +4,26 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 transition-colors duration-300;
+    /* Premium Fintech Light Theme Background (Soft tinted blue/gray) */
+    @apply bg-[#F4F7FE] text-gray-900 transition-colors duration-300;
   }
   
-  /* Dark Mode Body */
   html.dark body {
-    @apply bg-dark-bg text-dark-text;
+    @apply bg-[#0f172a] text-[#f8fafc];
   }
 }
 
 @layer utilities {
+  .premium-card {
+    /* Refined floating shadow for light mode, flat for dark mode */
+    @apply bg-white dark:bg-[#1e293b] rounded-2xl transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-[#E2E8F0] dark:border-[#334155];
+  }
+  
   .glass {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-lg;
+    @apply bg-white/80 backdrop-blur-md border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
   }
   
   .glass-dark {
-    @apply bg-dark-card/80 backdrop-blur-md border border-dark-border shadow-lg;
-  }
-
-  .premium-card {
-    @apply bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border transition-all duration-300 hover:shadow-md;
+    @apply bg-[#1e293b]/80 backdrop-blur-md border border-[#334155] shadow-lg;
   }
 }
