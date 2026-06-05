@@ -1,11 +1,16 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './authSlice';
 
-export const store = configureStore({
+const store = configureStore({
   reducer: {
     auth: authReducer,
-    // Note: Future slices (expenses, incomes, etc.) can be added here if needed,
-    // though for performance, fetching directly via custom hooks/React Query is also standard.
-    // We will manage UI state here.
   },
+  // Adding middleware to avoid serializable check warnings if any
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+    }),
 });
+
+// YAHI LINE MISSING THI JISKI WAJAH SE ERROR AAYA:
+export default store;

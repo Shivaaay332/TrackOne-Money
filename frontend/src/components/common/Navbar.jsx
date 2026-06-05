@@ -1,8 +1,10 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { FiSun, FiMoon, FiLogOut, FiBell } from 'react-icons/fi';
+import { FiSun, FiMoon, FiLogOut, FiBell, FiWifiOff, FiRefreshCw, FiCheckCircle } from 'react-icons/fi';
+
 import { useTheme } from '../../context/ThemeContext';
+import { useNetwork } from '../../context/NetworkContext'; // <-- Network Context Imported
 import { logout } from '../../store/authSlice';
 
 // Helper to construct the full image URL from backend
@@ -17,6 +19,9 @@ const Navbar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+
+  // FIXED: Hook ab function component ke ANDAR call ho raha hai
+  const { isOnline, isSyncing, pendingCount } = useNetwork();
 
   const handleLogout = () => {
     dispatch(logout());
@@ -33,6 +38,20 @@ const Navbar = () => {
       </div>
 
       <div className="flex items-center space-x-4 md:space-x-6">
+        
+        {/* NEW PWA / OFFLINE SYNC STATUS INDICATOR */}
+        <div className="hidden sm:flex items-center space-x-2 mr-2 text-xs font-bold px-3 py-1.5 rounded-full border dark:border-[#334155] bg-gray-50 dark:bg-[#0f172a]">
+          {!isOnline ? (
+            <><FiWifiOff className="text-red-500 w-4 h-4" /><span className="text-red-500">Offline Mode</span></>
+          ) : isSyncing ? (
+            <><FiRefreshCw className="text-blue-500 w-4 h-4 animate-spin" /><span className="text-blue-500">Syncing...</span></>
+          ) : pendingCount > 0 ? (
+            <><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span><span className="text-amber-600">{pendingCount} Pending</span></>
+          ) : (
+            <><FiCheckCircle className="text-emerald-500 w-4 h-4" /><span className="text-emerald-600">Synced</span></>
+          )}
+        </div>
+
         <button
           onClick={toggleTheme}
           className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-[#334155] text-gray-600 dark:text-gray-300 transition-colors"

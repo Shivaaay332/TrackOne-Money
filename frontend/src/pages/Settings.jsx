@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { FiUser, FiMoon, FiSun, FiDownload, FiUpload, FiTrash2, FiAlertTriangle, FiCheck, FiLock, FiShieldOff } from 'react-icons/fi';
+import { FiUser, FiMoon, FiSun, FiDownload, FiUpload, FiTrash2, FiAlertTriangle, FiCheck, FiLock, FiShieldOff, FiSmartphone, FiDatabase, FiRefreshCw } from 'react-icons/fi';
 import { useTheme } from '../context/ThemeContext';
 import { updateUser, logout } from '../store/authSlice';
 import api from '../services/api';
+import { useNetwork } from '../context/NetworkContext';
+import { clearQueue } from '../utils/db';
 
 // Helper to construct the full image URL from backend
 const getAssetUrl = (path) => {
@@ -26,14 +28,29 @@ const Settings = () => {
   const [securityMode, setSecurityMode] = useState('idle'); 
   const [pinInputs, setPinInputs] = useState({ oldPin: '', newPin: '' });
   
+  // Offline & PWA States
+  const { isOnline, pendingCount, processQueue } = useNetwork();
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
   const fileInputRef = useRef(null);
   const jsonInputRef = useRef(null);
+
+  // Catch PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
   const showStatus = (text, type = 'success') => {
     setStatusMsg({ text, type });
     setTimeout(() => setStatusMsg({ text: '', type: '' }), 5000);
   };
 
+  // --- Profile Functions ---
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -46,16 +63,16 @@ const Settings = () => {
 
       const response = await api.put('/settings/profile', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       
-      // Update local storage and redux with new data including photo
       dispatch(updateUser(response.data));
       showStatus('Profile updated successfully!');
       setProfileData({ ...profileData, password: '' });
-      setProfilePhoto(null); // Clear selected file preview so it falls back to server URL
+      setProfilePhoto(null); 
     } catch (error) {
       showStatus(error.response?.data?.message || 'Failed to update profile', 'error');
     } finally { setLoading(false); }
   };
 
+  // --- Security Functions ---
   const handleSetupPin = async (e) => {
     e.preventDefault();
     try {
@@ -85,6 +102,7 @@ const Settings = () => {
     } catch (error) { showStatus(error.response?.data?.message, 'error'); }
   };
 
+  // --- Data Management Functions ---
   const handleExportBackup = async () => {
     try {
       const response = await api.get('/settings/backup', { responseType: 'blob' });
@@ -119,6 +137,22 @@ const Settings = () => {
     } catch (error) { showStatus(error.response?.data?.message || 'Factory reset failed.', 'error'); }
   };
 
+  // --- Offline & PWA Functions ---
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setDeferredPrompt(null);
+    }
+  };
+
+  const handleClearCache = async () => {
+    if (window.confirm("Delete all offline pending actions? Unsynced data will be permanently lost.")) {
+      await clearQueue();
+      showStatus("Offline cache cleared successfully.");
+    }
+  };
+
   return (
     <div className="pb-10 max-w-5xl mx-auto h-full">
       <div className="mb-6">
@@ -134,6 +168,8 @@ const Settings = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
           <div className="premium-card p-6">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><FiUser className="mr-2 text-blue-500" /> Profile Information</h3>
@@ -141,7 +177,6 @@ const Settings = () => {
               
               <div className="flex items-center space-x-4 mb-6">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden border-2 border-gray-100 dark:border-[#334155]">
-                  {/* Photo Display Logic: Show local preview if new file selected, else show server image, else show initial */}
                   {profilePhoto ? (
                     <img src={URL.createObjectURL(profilePhoto)} alt="Avatar" className="h-full w-full object-cover" />
                   ) : user?.profilePhoto ? (
@@ -243,6 +278,7 @@ const Settings = () => {
           </div>
         </div>
 
+        {/* RIGHT COLUMN */}
         <div className="space-y-6">
           <div className="premium-card p-6">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Preferences</h3>
@@ -257,7 +293,37 @@ const Settings = () => {
             </div>
           </div>
 
-          <div className="premium-card p-6 border-t-4 border-t-blue-500">
+          {/* NEW OFFLINE & SYNC CARD */}
+          <div className="premium-card p-6 border-t-4 border-indigo-500">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><FiDatabase className="mr-2 text-indigo-500" /> Offline Sync Engine</h3>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-[#0f172a] rounded-xl border border-gray-100 dark:border-[#334155]">
+                <div>
+                  <p className="font-bold text-gray-800 dark:text-gray-200">Pending Actions</p>
+                  <p className="text-xs text-gray-500">Waiting for internet</p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="font-black text-indigo-600 text-lg">{pendingCount}</span>
+                  <button onClick={processQueue} disabled={!isOnline || pendingCount === 0} className="p-2 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 rounded-lg disabled:opacity-50 tooltip" title="Force Sync">
+                    <FiRefreshCw className={pendingCount > 0 ? "animate-spin" : ""} />
+                  </button>
+                </div>
+              </div>
+              
+              {deferredPrompt && (
+                <button onClick={handleInstallApp} className="w-full flex justify-center items-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-md hover:from-blue-700 hover:to-indigo-700 transition-all">
+                  <FiSmartphone className="w-5 h-5" /> <span>Install TrackOne App</span>
+                </button>
+              )}
+
+              <button onClick={handleClearCache} className="w-full text-center text-sm font-bold text-red-500 hover:text-red-600 pt-2">
+                Clear Offline Pending Queue
+              </button>
+            </div>
+          </div>
+
+          <div className="premium-card p-6 border-t-4 border-blue-500">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Data Management</h3>
             <div className="space-y-3">
               <button onClick={handleExportBackup} className="w-full flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-[#0f172a] hover:bg-gray-100 dark:hover:bg-[#1e293b] rounded-xl transition-colors border border-gray-100 dark:border-[#334155] group shadow-sm">
@@ -280,6 +346,7 @@ const Settings = () => {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
