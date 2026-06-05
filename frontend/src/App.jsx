@@ -9,9 +9,9 @@ import AppLock from './components/common/AppLock';
 import AiChatWidget from './components/ai/AiChatWidget'; // <-- AI Chat Widget
 
 // Auth Pages
-import Login from './pages/Auth/Login';
-import Register from './pages/Auth/Register';
-import ForgotPassword from './pages/Auth/ForgotPassword';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import ForgotPassword from './pages/auth/ForgotPassword';
 
 // Main Pages
 import Dashboard from './pages/Dashboard';
