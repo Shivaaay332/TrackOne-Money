@@ -10,7 +10,6 @@ export default defineConfig({
       injectRegister: 'auto',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Exclude large API payloads from basic workbox cache (IndexedDB handles API)
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -23,15 +22,11 @@ export default defineConfig({
         name: 'TrackOne-Money',
         short_name: 'TrackOne',
         description: 'Advanced Financial Management System',
-        theme_color: '#4f46e5', // Indigo-600
+        theme_color: '#4f46e5',
         background_color: '#f8fafc',
         display: 'standalone',
-        orientation: 'portrait',
-        icons: [
-          { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-        ]
+        orientation: 'portrait'
+        // Icons array removed temporarily for safe build
       }
     })
   ]
