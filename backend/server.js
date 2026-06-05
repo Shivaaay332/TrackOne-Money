@@ -24,9 +24,7 @@ const settingsRoutes = require('./routes/settingsRoutes');
 // Newly Added Modules
 const aiRoutes = require('./routes/aiRoutes');   // TrackOne AI Module
 const emiRoutes = require('./routes/emiRoutes'); // EMI Tracker Module
-const historyRoutes = require('./routes/historyRoutes'); // Import me add karein
-
-app.use('/api/v1/history', historyRoutes); // Routes mount me add karein
+const historyRoutes = require('./routes/historyRoutes'); // History Ledger Module
 
 // Load Env
 dotenv.config();
@@ -48,7 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 // Static folder for profile photos/receipts uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 4. Mount Routes (Ab hum yahan safely app.use kar sakte hain)
+// 4. Mount Routes (Yahan app.use safely kaam karega)
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/income', incomeRoutes);
@@ -60,6 +58,7 @@ app.use('/api/v1/settings', settingsRoutes);
 // Mount New Features
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/emi', emiRoutes);
+app.use('/api/v1/history', historyRoutes); // YAHAN AAYEGA HISTORY ROUTE
 
 // Base Route
 app.get('/', (req, res) => {
