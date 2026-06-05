@@ -26,7 +26,7 @@ export default defineConfig({
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait'
-        // Icons array removed temporarily for safe build
+        // Icons removed temporarily to prevent build crashes
       }
     })
   ]

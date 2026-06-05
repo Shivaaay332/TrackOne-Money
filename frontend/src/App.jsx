@@ -19,8 +19,8 @@ import Expenses from './pages/Expenses';
 import Udhari from './pages/Udhari';
 import FutureGoals from './pages/FutureGoals';
 import Settings from './pages/Settings';
-import AiDashboard from './pages/AiDashboard'; // <-- AI Dashboard Page
-import EmiTracker from './pages/EmiTracker'; // Add to imports
+import AiDashboard from './pages/AiDashboard';
+import EmiTracker from './pages/EmiTracker';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
