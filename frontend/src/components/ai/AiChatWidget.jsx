@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiMessageSquare } from 'react-icons/fi';
 import api from '../../services/api';
@@ -20,7 +21,9 @@ const INITIAL_MESSAGE = {
 };
 
 const AiChatWidget = () => {
+  const location = useLocation(); 
   const [isOpen, setIsOpen] = useState(false);
+  
   const [messages, setMessages] = useState([INITIAL_MESSAGE]);
   const [isLoading, setIsLoading] = useState(false);
   const [contextData, setContextData] = useState(null);
@@ -91,6 +94,12 @@ const AiChatWidget = () => {
   useEffect(() => {
     if (voiceError) addMessage('ai', `🎤 Microphone error: ${voiceError}`);
   }, [voiceError, addMessage]);
+
+  // YEH MAGIC LINE HAI JO WIDGET KO BAAKI PAGES SE HATA DEGI
+  // Agar URL '/ai-assistant' nahi hai, toh yeh component kuch bhi render nahi karega.
+  if (location.pathname !== '/ai-assistant') {
+    return null;
+  }
 
   return (
     <>

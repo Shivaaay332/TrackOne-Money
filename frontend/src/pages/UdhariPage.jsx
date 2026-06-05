@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiCheckCircle, FiAlertCircle, FiClock } from 'react-icons/fi';
-import { FaWhatsapp } from 'react-icons/fa'; // Added Whatsapp Icon
+import { FaWhatsapp } from 'react-icons/fa';
 import api from '../services/api';
 import UdhariFormModal from '../components/udhari/UdhariFormModal';
+import HistoryLedgerModal from '../components/common/HistoryLedgerModal'; // <-- NAYA IMPORT
 
 const Udhari = () => {
   const [activeTab, setActiveTab] = useState('lene'); 
@@ -13,6 +14,9 @@ const Udhari = () => {
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // <-- NAYA STATE HISTORY MODAL KE LIYE -->
+  const [historyModalState, setHistoryModalState] = useState({ isOpen: false, moduleType: 'Udhari', recordId: '', title: '' });
 
   const fetchUdhariData = async () => {
     setLoading(true);
@@ -47,9 +51,8 @@ const Udhari = () => {
     }
   };
 
-  // ADVANCED WHATSAPP INTEGRATION
   const handleWhatsappReminder = (record) => {
-    const cleanPhone = record.phoneNumber.replace(/\D/g, ''); // Remove spaces/symbols
+    const cleanPhone = record.phoneNumber.replace(/\D/g, ''); 
     let message = "";
     if (record.type === 'Lene Wale') {
       message = `Hi ${record.personName}, \n\nThis is a gentle reminder regarding the pending amount of *₹${record.amount}* on our TrackOne ledger. Please try to clear it at your earliest convenience. \n\nThank you! 🤝`;
@@ -128,7 +131,6 @@ const Udhari = () => {
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">{record.personName}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{record.phoneNumber}</p>
                   </div>
-                  {/* Dynamic Color Hierarchy for Amount */}
                   <div className="text-right mt-1">
                     <span className={`text-2xl font-black tracking-tight ${activeTab === 'lene' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                       ₹{record.amount.toLocaleString()}
@@ -151,6 +153,11 @@ const Udhari = () => {
                   </button>
 
                   <div className="flex items-center space-x-2">
+                    {/* NAYA HISTORY BUTTON */}
+                    <button onClick={() => setHistoryModalState({ isOpen: true, moduleType: 'Udhari', recordId: record._id, title: record.personName })} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 rounded-lg tooltip transition-colors" title="View Detailed History">
+                      <FiClock />
+                    </button>
+
                     {!record.isSettled && (
                       <button onClick={() => handleWhatsappReminder(record)} className="p-2 text-green-600 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 rounded-lg tooltip transition-colors" title="Send WhatsApp Reminder">
                         <FaWhatsapp className="w-5 h-5" />
@@ -171,6 +178,15 @@ const Udhari = () => {
       </div>
 
       <UdhariFormModal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} type={activeTab} editData={selectedRecord} onSave={handleSaveRecord} />
+      
+      {/* NAYA HISTORY MODAL COMPONENT */}
+      <HistoryLedgerModal 
+        isOpen={historyModalState.isOpen}
+        onClose={() => setHistoryModalState({ ...historyModalState, isOpen: false })}
+        moduleType={historyModalState.moduleType}
+        recordId={historyModalState.recordId}
+        title={historyModalState.title}
+      />
     </div>
   );
 };

@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { FiPlus, FiCreditCard, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
+import { FiPlus, FiCreditCard, FiAlertCircle, FiCheckCircle, FiClock } from 'react-icons/fi'; // FiClock added
 import api from '../services/api';
 import EmiFormModal from '../components/emi/EmiFormModal';
+import HistoryLedgerModal from '../components/common/HistoryLedgerModal'; // <-- NAYA IMPORT
 
 const EmiTracker = () => {
   const [emis, setEmis] = useState([]);
   const [metrics, setMetrics] = useState({ totalActive: 0, monthlyBurden: 0, totalOutstanding: 0, overdueCount: 0 });
   const [isFormOpen, setIsFormOpen] = useState(false);
+
+  // <-- NAYA STATE HISTORY MODAL KE LIYE -->
+  const [historyModalState, setHistoryModalState] = useState({ isOpen: false, moduleType: 'EMI', recordId: '', title: '' });
 
   const fetchEmis = async () => {
     try {
@@ -108,10 +112,16 @@ const EmiTracker = () => {
                 <div className="text-sm font-medium text-gray-600 dark:text-gray-300">
                   Next Due: <span className={isOverdue ? 'text-red-500 font-bold' : ''}>{new Date(emi.nextDueDate).toLocaleDateString()}</span>
                 </div>
-                <div className="space-x-2">
+                <div className="space-x-2 flex items-center">
                   {emi.status !== 'Closed' && (
                     <button onClick={() => handleMarkPaid(emi._id, emi.emiAmount)} className="px-4 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg text-sm font-bold transition-colors">Pay ₹{emi.emiAmount}</button>
                   )}
+                  
+                  {/* NAYA HISTORY BUTTON */}
+                  <button onClick={() => setHistoryModalState({ isOpen: true, moduleType: 'EMI', recordId: emi._id, title: emi.emiName })} className="px-3 py-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 rounded-lg text-sm font-bold transition-colors">
+                    History
+                  </button>
+
                   <button onClick={() => handleDelete(emi._id)} className="px-3 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-bold">Delete</button>
                 </div>
               </div>
@@ -121,6 +131,15 @@ const EmiTracker = () => {
       </div>
 
       <EmiFormModal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} onSave={handleCreateEmi} />
+
+      {/* NAYA HISTORY MODAL COMPONENT */}
+      <HistoryLedgerModal 
+        isOpen={historyModalState.isOpen}
+        onClose={() => setHistoryModalState({ ...historyModalState, isOpen: false })}
+        moduleType={historyModalState.moduleType}
+        recordId={historyModalState.recordId}
+        title={historyModalState.title}
+      />
     </div>
   );
 };

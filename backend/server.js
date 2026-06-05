@@ -24,6 +24,9 @@ const settingsRoutes = require('./routes/settingsRoutes');
 // Newly Added Modules
 const aiRoutes = require('./routes/aiRoutes');   // TrackOne AI Module
 const emiRoutes = require('./routes/emiRoutes'); // EMI Tracker Module
+const historyRoutes = require('./routes/historyRoutes'); // Import me add karein
+
+app.use('/api/v1/history', historyRoutes); // Routes mount me add karein
 
 // Load Env
 dotenv.config();
