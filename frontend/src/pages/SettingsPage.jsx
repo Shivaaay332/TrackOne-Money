@@ -7,7 +7,6 @@ import api from '../services/api';
 import { useNetwork } from '../context/NetworkContext';
 import { clearQueue } from '../utils/db';
 
-// Helper to construct the full image URL from backend
 const getAssetUrl = (path) => {
   if (!path) return '';
   const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:5000';
@@ -20,22 +19,19 @@ const Settings = () => {
   const { isDarkMode, toggleTheme } = useTheme();
   
   const [profileData, setProfileData] = useState({ name: user?.name || '', email: user?.email || '', password: '' });
-  const [profilePhoto, setProfilePhoto] = useState(null); // Holds the selected file for upload
+  const [profilePhoto, setProfilePhoto] = useState(null); 
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
   
-  // Security States
   const [securityMode, setSecurityMode] = useState('idle'); 
   const [pinInputs, setPinInputs] = useState({ oldPin: '', newPin: '' });
   
-  // Offline & PWA States
   const { isOnline, pendingCount, processQueue } = useNetwork();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   const fileInputRef = useRef(null);
   const jsonInputRef = useRef(null);
 
-  // Catch PWA Install Prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
@@ -50,7 +46,6 @@ const Settings = () => {
     setTimeout(() => setStatusMsg({ text: '', type: '' }), 5000);
   };
 
-  // --- Profile Functions ---
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -72,7 +67,6 @@ const Settings = () => {
     } finally { setLoading(false); }
   };
 
-  // --- Security Functions ---
   const handleSetupPin = async (e) => {
     e.preventDefault();
     try {
@@ -102,7 +96,6 @@ const Settings = () => {
     } catch (error) { showStatus(error.response?.data?.message, 'error'); }
   };
 
-  // --- Data Management Functions ---
   const handleExportBackup = async () => {
     try {
       const response = await api.get('/settings/backup', { responseType: 'blob' });
@@ -137,7 +130,6 @@ const Settings = () => {
     } catch (error) { showStatus(error.response?.data?.message || 'Factory reset failed.', 'error'); }
   };
 
-  // --- Offline & PWA Functions ---
   const handleInstallApp = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -150,6 +142,18 @@ const Settings = () => {
     if (window.confirm("Delete all offline pending actions? Unsynced data will be permanently lost.")) {
       await clearQueue();
       showStatus("Offline cache cleared successfully.");
+    }
+  };
+
+  // NAYA SMART SYNC BUTTON LOGIC
+  const handleManualSync = () => {
+    if (!isOnline) {
+      showStatus("Cannot sync right now. You are currently offline.", "error");
+    } else if (pendingCount === 0) {
+      showStatus("Everything is already synced and up to date!", "success");
+    } else {
+      processQueue();
+      showStatus("Syncing pending actions to cloud...", "success");
     }
   };
 
@@ -169,7 +173,6 @@ const Settings = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
           <div className="premium-card p-6">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><FiUser className="mr-2 text-blue-500" /> Profile Information</h3>
@@ -278,7 +281,6 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
         <div className="space-y-6">
           <div className="premium-card p-6">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Preferences</h3>
@@ -293,7 +295,6 @@ const Settings = () => {
             </div>
           </div>
 
-          {/* NEW OFFLINE & SYNC CARD */}
           <div className="premium-card p-6 border-t-4 border-indigo-500">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><FiDatabase className="mr-2 text-indigo-500" /> Offline Sync Engine</h3>
             
@@ -301,12 +302,20 @@ const Settings = () => {
               <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-[#0f172a] rounded-xl border border-gray-100 dark:border-[#334155]">
                 <div>
                   <p className="font-bold text-gray-800 dark:text-gray-200">Pending Actions</p>
-                  <p className="text-xs text-gray-500">Waiting for internet</p>
+                  {/* NAYA DYNAMIC TEXT LOGIC YAHAN HAI */}
+                  <p className="text-xs text-gray-500">
+                    {pendingCount === 0 
+                      ? "All data is up to date" 
+                      : !isOnline 
+                        ? "Waiting for internet..." 
+                        : "Ready to sync to cloud"}
+                  </p>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <span className="font-black text-indigo-600 text-lg">{pendingCount}</span>
-                  <button onClick={processQueue} disabled={!isOnline || pendingCount === 0} className="p-2 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 rounded-lg disabled:opacity-50 tooltip" title="Force Sync">
-                    <FiRefreshCw className={pendingCount > 0 ? "animate-spin" : ""} />
+                  <span className={`font-black text-lg ${pendingCount > 0 ? 'text-indigo-600' : 'text-emerald-600'}`}>{pendingCount}</span>
+                  {/* NAYA BUTTON LOGIC YAHAN HAI */}
+                  <button onClick={handleManualSync} className="p-2 bg-indigo-100 text-indigo-600 hover:bg-indigo-200 dark:bg-indigo-900/50 rounded-lg transition-colors tooltip" title="Force Sync">
+                    <FiRefreshCw className={pendingCount > 0 && isOnline ? "animate-spin" : ""} />
                   </button>
                 </div>
               </div>
@@ -317,9 +326,12 @@ const Settings = () => {
                 </button>
               )}
 
-              <button onClick={handleClearCache} className="w-full text-center text-sm font-bold text-red-500 hover:text-red-600 pt-2">
-                Clear Offline Pending Queue
-              </button>
+              {/* HIDE CLEAR CACHE BUTTON IF 0 PENDING */}
+              {pendingCount > 0 && (
+                <button onClick={handleClearCache} className="w-full text-center text-sm font-bold text-red-500 hover:text-red-600 pt-2">
+                  Clear Offline Pending Queue
+                </button>
+              )}
             </div>
           </div>
 
