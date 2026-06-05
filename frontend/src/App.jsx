@@ -16,9 +16,11 @@ import ForgotPassword from './pages/Auth/ForgotPassword';
 // Main Pages
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
-import Udhari from './pages/Udhari';
+import Udhari from './pages/UdhariPage';
 import FutureGoals from './pages/FutureGoals';
-import Settings from './pages/Settings';
+// Purana: import Settings from './pages/Settings';
+// NAYA YEH LIKHEIN:
+import Settings from './pages/SettingsPage';
 import AiDashboard from './pages/AiDashboard';
 import EmiTracker from './pages/EmiTracker';
 
