@@ -9,10 +9,11 @@ const getAssetUrl = (path) => {
   return `${baseUrl}/${path.replace(/\\/g, '/')}`;
 };
 
-const HistoryLedgerModal = ({ isOpen, onClose, moduleType, recordId, title }) => {
+// NAYA PROP ADD KIYA HAI: onUpdate
+const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, title }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'add'
+  const [viewMode, setViewMode] = useState('list');
   const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({ amount: '', actionType: 'Paid', date: new Date().toISOString().split('T')[0], note: '' });
@@ -42,17 +43,25 @@ const HistoryLedgerModal = ({ isOpen, onClose, moduleType, recordId, title }) =>
       if (receiptFile) form.append('receiptImage', receiptFile);
 
       await api.post('/history', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      fetchHistory(); setViewMode('list');
+      
+      fetchHistory(); 
+      setViewMode('list');
       setFormData({ amount: '', actionType: 'Paid', date: new Date().toISOString().split('T')[0], note: '' });
       setReceiptFile(null);
+      
+      // MAGIC: PEECHE WALI SCREEN KO REFRESH KARO
+      if(onUpdate) onUpdate(); 
+
     } catch (error) { alert("Failed to add record"); }
     finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Permanently delete this record?")) {
+    if (window.confirm("Permanently delete this record? This will also reverse the main balance.")) {
       await api.delete(`/history/${id}`);
       fetchHistory();
+      // MAGIC: PEECHE WALI SCREEN KO REFRESH KARO
+      if(onUpdate) onUpdate();
     }
   };
 
@@ -65,7 +74,7 @@ const HistoryLedgerModal = ({ isOpen, onClose, moduleType, recordId, title }) =>
           
           <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-[#334155] bg-gray-50 dark:bg-[#0f172a]">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><FiClock className="mr-2 text-indigo-500" /> Detailed History</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><FiClock className="mr-2 text-indigo-500" /> Detailed Ledger</h2>
               <p className="text-sm text-gray-500 mt-1">{moduleType}: <span className="font-bold text-indigo-600">{title}</span></p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors dark:text-gray-400"><FiX className="w-6 h-6" /></button>
@@ -73,7 +82,7 @@ const HistoryLedgerModal = ({ isOpen, onClose, moduleType, recordId, title }) =>
 
           <div className="flex border-b border-gray-200 dark:border-[#334155]">
             <button onClick={() => setViewMode('list')} className={`flex-1 py-3 text-sm font-bold ${viewMode === 'list' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}>View Records ({logs.length})</button>
-            <button onClick={() => setViewMode('add')} className={`flex-1 py-3 text-sm font-bold flex justify-center items-center ${viewMode === 'add' ? 'text-emerald-600 border-b-2 border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}><FiPlus className="mr-1"/> Add New Record</button>
+            <button onClick={() => setViewMode('add')} className={`flex-1 py-3 text-sm font-bold flex justify-center items-center ${viewMode === 'add' ? 'text-emerald-600 border-b-2 border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}><FiPlus className="mr-1"/> Add Payment</button>
           </div>
 
           <div className="p-6 overflow-y-auto flex-1 bg-gray-50 dark:bg-[#0f172a]">
@@ -138,7 +147,7 @@ const HistoryLedgerModal = ({ isOpen, onClose, moduleType, recordId, title }) =>
                   </div>
                 </div>
                 <button type="submit" disabled={loading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold mt-4 shadow-md transition-colors disabled:opacity-70">
-                  {loading ? 'Saving...' : 'Save Record'}
+                  {loading ? 'Saving...' : 'Save Record & Update Balance'}
                 </button>
               </form>
             )}

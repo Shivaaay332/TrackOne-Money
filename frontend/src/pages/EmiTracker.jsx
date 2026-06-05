@@ -136,6 +136,7 @@ const EmiTracker = () => {
       <HistoryLedgerModal 
         isOpen={historyModalState.isOpen}
         onClose={() => setHistoryModalState({ ...historyModalState, isOpen: false })}
+        onUpdate={fetchEmis} // <--- YEH LINE MAGIC HAI (Refresh karegi)
         moduleType={historyModalState.moduleType}
         recordId={historyModalState.recordId}
         title={historyModalState.title}
