@@ -29,5 +29,9 @@ export default defineConfig({
         // Icons removed temporarily to prevent build crashes
       }
     })
-  ]
+  ],
+  // YEH NAYA BLOCK ADD KIYA HAI WARNING HATANE KE LIYE
+  build: {
+    chunkSizeWarningLimit: 2000
+  }
 });
