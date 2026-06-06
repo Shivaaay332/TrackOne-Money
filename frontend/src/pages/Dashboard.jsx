@@ -48,25 +48,51 @@ const Dashboard = () => {
     if (!dashboardData) return;
     setIsExporting(true);
     try {
-      // 🔥 MAGIC FIX: PDF Crash ko rokne ke liye safe data mapping 🔥
-      // PDF generator undefined data milne par crash ho raha tha.
-      // Hum yahan fallback (|| 0) laga kar bhejenge taaki wo smoothly chale.
+      // 🔥 ULTRA-SAFE DATA SANITIZATION 🔥
+      // Yeh PDF Generator ko undefined dega hi nahi, direct 0 bhej dega agar data missing hua
       const safeDataForPDF = {
-        totalIncome: dashboardData?.cards?.totalIncome || 0,
-        totalExpenses: dashboardData?.cards?.totalExpenses || 0,
-        totalExpense: dashboardData?.cards?.totalExpenses || 0,
-        udhariMetrics: dashboardData?.cards?.udhariMetrics || {},
-        emiMetrics: dashboardData?.cards?.emiMetrics || {},
-        cards: dashboardData?.cards || {},
-        charts: dashboardData?.charts || {},
-        ...dashboardData 
+        ...dashboardData,
+        // Flat properties (Just in case)
+        totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
+        totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
+        totalExpense: Number(dashboardData?.cards?.totalExpenses) || 0,
+        
+        // Nested Cards properties
+        cards: {
+          totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
+          totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
+          udhariMetrics: {
+            pendingAmount: Number(dashboardData?.cards?.udhariMetrics?.pendingAmount) || 0,
+            totalReceivable: Number(dashboardData?.cards?.udhariMetrics?.totalReceivable) || 0,
+            totalPayable: Number(dashboardData?.cards?.udhariMetrics?.totalPayable) || 0,
+          },
+          emiMetrics: {
+            totalActive: Number(dashboardData?.cards?.emiMetrics?.totalActive) || 0,
+            monthlyBurden: Number(dashboardData?.cards?.emiMetrics?.monthlyBurden) || 0,
+          }
+        },
+
+        // Charts properties (Arrays)
+        charts: {
+          monthlyTrend: (dashboardData?.charts?.monthlyTrend || []).map(m => ({
+            ...m,
+            income: Number(m.income) || 0,
+            expense: Number(m.expense) || 0
+          })),
+          expenseByCategory: (dashboardData?.charts?.expenseByCategory || []).map(c => ({
+            ...c,
+            amount: Number(c.amount) || Number(c.value) || 0,
+            value: Number(c.value) || Number(c.amount) || 0
+          }))
+        }
       };
 
-      // Ab PDF Generator ko perfectly formatted data milega
-      await generateProfessionalReport(safeDataForPDF, user, reportPeriod, reportMode);
+      // Pass safe data and empty fallback for user just in case
+      await generateProfessionalReport(safeDataForPDF, user || {}, reportPeriod, reportMode);
+      
     } catch (error) {
       console.error("PDF generation failed", error);
-      alert('Failed to generate professional report. Please try again.');
+      alert('Failed to generate professional report. Please check the console for details.');
     } finally {
       setIsExporting(false);
     }
