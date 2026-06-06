@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { FiPlus, FiCreditCard, FiAlertCircle, FiCheckCircle, FiClock } from 'react-icons/fi'; // FiClock added
+import { FiPlus, FiCreditCard, FiAlertCircle, FiCheckCircle, FiClock } from 'react-icons/fi'; 
 import api from '../services/api';
 import EmiFormModal from '../components/emi/EmiFormModal';
-import HistoryLedgerModal from '../components/common/HistoryLedgerModal'; // <-- NAYA IMPORT
+import HistoryLedgerModal from '../components/common/HistoryLedgerModal'; 
 
 const EmiTracker = () => {
   const [emis, setEmis] = useState([]);
   const [metrics, setMetrics] = useState({ totalActive: 0, monthlyBurden: 0, totalOutstanding: 0, overdueCount: 0 });
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // <-- NAYA STATE HISTORY MODAL KE LIYE -->
   const [historyModalState, setHistoryModalState] = useState({ isOpen: false, moduleType: 'EMI', recordId: '', title: '' });
 
   const fetchEmis = async () => {
@@ -30,11 +29,14 @@ const EmiTracker = () => {
     } catch (error) { alert("Failed to add EMI"); }
   };
 
+  // 🔥 CONFIRMATION BEFORE AUTO-LOGGING 🔥
   const handleMarkPaid = async (id, amount) => {
-    try {
-      await api.post(`/emi/${id}/pay`, { amountPaid: amount });
-      fetchEmis();
-    } catch (error) { alert("Payment failed"); }
+    if(window.confirm(`Confirm payment of ₹${amount.toLocaleString('en-IN')}? This will automatically update your loan progress and be saved in your Timeline History.`)) {
+        try {
+          await api.post(`/emi/${id}/pay`, { amountPaid: amount });
+          fetchEmis();
+        } catch (error) { alert("Payment failed"); }
+    }
   };
 
   const handleDelete = async (id) => {
@@ -101,7 +103,7 @@ const EmiTracker = () => {
               <div className="mt-4 mb-4">
                 <div className="flex justify-between text-xs mb-1 font-medium dark:text-gray-300">
                   <span>Paid: {emi.paidInstallments}/{emi.tenureMonths} Months</span>
-                  <span>{progress}%</span>
+                  <span className="text-blue-500 font-bold">{progress}% Cleared</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-[#334155] rounded-full h-2.5">
                   <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
@@ -114,12 +116,13 @@ const EmiTracker = () => {
                 </div>
                 <div className="space-x-2 flex items-center">
                   {emi.status !== 'Closed' && (
-                    <button onClick={() => handleMarkPaid(emi._id, emi.emiAmount)} className="px-4 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg text-sm font-bold transition-colors">Pay ₹{emi.emiAmount}</button>
+                    <button onClick={() => handleMarkPaid(emi._id, emi.emiAmount)} className="px-4 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg text-sm font-bold transition-colors">
+                      Pay ₹{emi.emiAmount}
+                    </button>
                   )}
                   
-                  {/* NAYA HISTORY BUTTON */}
                   <button onClick={() => setHistoryModalState({ isOpen: true, moduleType: 'EMI', recordId: emi._id, title: emi.emiName })} className="px-3 py-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 rounded-lg text-sm font-bold transition-colors">
-                    History
+                    Timeline
                   </button>
 
                   <button onClick={() => handleDelete(emi._id)} className="px-3 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-bold">Delete</button>
@@ -132,11 +135,10 @@ const EmiTracker = () => {
 
       <EmiFormModal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} onSave={handleCreateEmi} />
 
-      {/* NAYA HISTORY MODAL COMPONENT */}
       <HistoryLedgerModal 
         isOpen={historyModalState.isOpen}
         onClose={() => setHistoryModalState({ ...historyModalState, isOpen: false })}
-        onUpdate={fetchEmis} // <--- YEH LINE MAGIC HAI (Refresh karegi)
+        onUpdate={fetchEmis} 
         moduleType={historyModalState.moduleType}
         recordId={historyModalState.recordId}
         title={historyModalState.title}
