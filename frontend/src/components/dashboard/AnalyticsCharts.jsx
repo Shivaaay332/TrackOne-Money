@@ -1,103 +1,118 @@
 import React from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts';
-import { motion } from 'framer-motion';
+import { FiPieChart, FiTrendingUp } from 'react-icons/fi';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white dark:bg-dark-card p-4 border border-gray-100 dark:border-dark-border shadow-lg rounded-xl">
-        <p className="font-semibold text-gray-800 dark:text-gray-100 mb-2">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} style={{ color: entry.color }} className="text-sm font-medium">
-            {entry.name}: ₹{entry.value.toLocaleString('en-IN')}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
+// Mast Colors for Pie Chart
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 const AnalyticsCharts = ({ monthlyTrend, expenseByCategory }) => {
-  // Format Pie Chart Data
-  const pieData = Object.keys(expenseByCategory).map((key) => ({
-    name: key,
-    value: expenseByCategory[key]
-  }));
+  
+  // Safe checks (Agar data nahi aaya toh khali array use karo)
+  const safeTrendData = monthlyTrend && monthlyTrend.length > 0 ? monthlyTrend : [];
+  const safePieData = expenseByCategory && expenseByCategory.length > 0 ? expenseByCategory : [];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
-      {/* Area Chart: Income vs Expense Trend */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="premium-card p-6 lg:col-span-2"
-      >
-        <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">Cash Flow Trend (Last 6 Months)</h3>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={monthlyTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dx={-10} tickFormatter={(value) => `₹${value/1000}k`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="income" name="Income" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
-              <Area type="monotone" dataKey="expense" name="Expense" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
+      {/* 1. Cash Flow Line Chart (Takes 2 columns space) */}
+      <div className="lg:col-span-2 premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-2xl shadow-sm">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+          <FiTrendingUp className="mr-2 text-blue-500" /> Cash Flow Trend (Last 6 Months)
+        </h3>
+        
+        {safeTrendData.length === 0 ? (
+          <div className="h-[300px] flex items-center justify-center text-gray-400 font-medium">
+            No data available for the last 6 months. Add some transactions!
+          </div>
+        ) : (
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={safeTrendData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#94a3b8" 
+                  fontSize={12} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  dy={10}
+                />
+                <YAxis 
+                  stroke="#94a3b8" 
+                  fontSize={12} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickFormatter={(value) => `₹${value >= 1000 ? (value/1000).toFixed(1) + 'k' : value}`}
+                />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(value) => [`₹${value.toLocaleString()}`, undefined]}
+                />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                
+                <Line type="monotone" name="Income" dataKey="income" stroke="#10b981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" name="Expense" dataKey="expense" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
 
-      {/* Doughnut Chart: Expenses by Category */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="premium-card p-6"
-      >
-        <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">Expense Breakdown</h3>
-        <div className="h-[300px] w-full flex flex-col items-center justify-center">
-          {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+      {/* 2. Expense Category Pie Chart (Takes 1 column space) */}
+      <div className="premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-2xl shadow-sm flex flex-col">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 flex items-center">
+          <FiPieChart className="mr-2 text-indigo-500" /> Expense Breakdown
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Where your money goes</p>
+
+        {safePieData.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 mt-10">
+            <div className="w-32 h-32 rounded-full border-4 border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center mb-4">
+              <span className="text-xs font-bold text-gray-400">Empty</span>
+            </div>
+            <p className="text-sm font-medium text-center px-4">Add expenses to see breakdown</p>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col justify-center relative min-h-[250px]">
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={pieData}
+                  data={safePieData}
                   cx="50%"
-                  cy="45%"
-                  innerRadius={60}
-                  outerRadius={80}
+                  cy="50%"
+                  innerRadius={65}
+                  outerRadius={85}
                   paddingAngle={5}
                   dataKey="value"
+                  stroke="none"
                 >
-                  {pieData.map((entry, index) => (
+                  {safePieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
+                  formatter={(value) => [`₹${value.toLocaleString()}`, undefined]}
+                />
               </PieChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="text-gray-400 dark:text-gray-500 flex items-center h-full">No expense data available</div>
-          )}
-        </div>
-      </motion.div>
+            
+            {/* Custom Legend for Pie Chart */}
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {safePieData.map((entry, index) => (
+                <div key={index} className="flex items-center text-[10px] font-bold text-gray-600 dark:text-gray-300">
+                  <span className="w-2.5 h-2.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                  {entry.name}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
     </div>
   );
