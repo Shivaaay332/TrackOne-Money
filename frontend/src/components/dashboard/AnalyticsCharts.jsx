@@ -10,9 +10,24 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 const AnalyticsCharts = ({ monthlyTrend, expenseByCategory }) => {
   
-  // Safe checks (Agar data nahi aaya toh khali array use karo)
-  const safeTrendData = monthlyTrend && monthlyTrend.length > 0 ? monthlyTrend : [];
-  const safePieData = expenseByCategory && expenseByCategory.length > 0 ? expenseByCategory : [];
+  // ==========================================
+  // MAGIC FIX: Auto-Format Data for Charts
+  // ==========================================
+  // Yeh logic backend se aane wale kisi bhi naam (month, category, amount) 
+  // ko Recharts ke samajh aane wale format (name, value) mein badal dega.
+
+  const safeTrendData = (monthlyTrend || []).map(item => ({
+    name: item.name || item.month || item.monthStr || 'N/A', // Catch any month format
+    income: Number(item.income) || 0,
+    expense: Number(item.expense) || 0
+  }));
+
+  const safePieData = (expenseByCategory || [])
+    .map(item => ({
+      name: item.name || item.category || item._id || 'Other', // Catch any category format
+      value: Number(item.value) || Number(item.amount) || Number(item.total) || 0 // Catch any amount format
+    }))
+    .filter(item => item.value > 0); // Sirf wahi dikhao jisme amount 0 se bada ho
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -71,7 +86,7 @@ const AnalyticsCharts = ({ monthlyTrend, expenseByCategory }) => {
 
         {safePieData.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 mt-10">
-            <div className="w-32 h-32 rounded-full border-4 border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center mb-4">
+            <div className="w-32 h-32 rounded-full border-4 border-dashed border-gray-200 dark:border-[#334155] flex items-center justify-center mb-4">
               <span className="text-xs font-bold text-gray-400">Empty</span>
             </div>
             <p className="text-sm font-medium text-center px-4">Add expenses to see breakdown</p>
@@ -88,6 +103,7 @@ const AnalyticsCharts = ({ monthlyTrend, expenseByCategory }) => {
                   outerRadius={85}
                   paddingAngle={5}
                   dataKey="value"
+                  nameKey="name"
                   stroke="none"
                 >
                   {safePieData.map((entry, index) => (
