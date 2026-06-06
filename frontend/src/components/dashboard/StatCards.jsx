@@ -1,89 +1,123 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { FiArrowUpRight, FiArrowDownRight, FiDollarSign, FiUsers, FiTarget, FiActivity } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiUsers, FiCreditCard } from 'react-icons/fi';
 
-const StatCard = ({ title, amount, icon: Icon, colorClass, delay, type = 'currency' }) => {
-  // Format the display value based on the metric type
-  let displayValue = amount;
-  if (type === 'currency') {
-    displayValue = `₹${Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-  } else if (type === 'percentage') {
-    displayValue = `${Number(amount).toFixed(2)}%`;
-  } else {
-    displayValue = Number(amount).toLocaleString('en-IN');
-  }
+const StatCards = ({ summaryData, reportMode }) => {
+  // Agar data nahi aaya (loading state), toh zeroes dikhaye
+  const data = summaryData || {
+    totalIncome: 0,
+    totalExpenses: 0,
+    udhariMetrics: { pendingAmount: 0, totalReceivable: 0, totalPayable: 0 },
+    emiMetrics: { totalActive: 0, monthlyBurden: 0 }
+  };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }}
-      className="premium-card p-5 flex items-center justify-between bg-white dark:bg-dark-card border-l-4 border-transparent hover:border-primary-500 transition-all"
-    >
-      <div>
-        <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">{title}</p>
-        <h3 className="text-2xl font-black text-gray-900 dark:text-white">
-          {displayValue}
-        </h3>
-      </div>
-      <div className={`p-3 rounded-xl shadow-sm ${colorClass}`}>
-        <Icon className="h-6 w-6" />
-      </div>
-    </motion.div>
-  );
-};
-
-const StatCards = ({ summaryData }) => {
-  if (!summaryData) return null;
+  const isDetailed = reportMode === 'detailed';
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mt-6">
-      <StatCard 
-        title="Total Balance (Savings)" 
-        amount={summaryData.totalSavings} 
-        icon={FiDollarSign} 
-        colorClass="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-        delay={0}
-      />
-      <StatCard 
-        title="Total Income" 
-        amount={summaryData.totalIncome} 
-        icon={FiArrowUpRight} 
-        colorClass="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-        delay={0.1}
-      />
-      <StatCard 
-        title="Total Expenses" 
-        amount={summaryData.totalExpense} 
-        icon={FiArrowDownRight} 
-        colorClass="bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-        delay={0.2}
-      />
-      <StatCard 
-        title="Udhari Market (Lene/Dene)" 
-        amount={summaryData.totalUdhariGiven - summaryData.totalUdhariTaken} 
-        icon={FiUsers} 
-        colorClass="bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
-        delay={0.3}
-      />
-      {/* Explicitly set type to 'number' to remove currency symbol */}
-      <StatCard 
-        title="Active Goals" 
-        amount={summaryData.activeGoals} 
-        icon={FiTarget} 
-        colorClass="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
-        delay={0.4}
-        type="number" 
-      />
-      {/* Explicitly set type to 'percentage' */}
-      <StatCard 
-        title="Goal Progress" 
-        amount={summaryData.overallGoalCompletionPercentage} 
-        icon={FiActivity} 
-        colorClass="bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400"
-        delay={0.5}
-        type="percentage"
-      />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      {/* 1. INCOME CARD */}
+      <div className={`premium-card transition-all duration-300 border-l-8 border-emerald-500 ${isDetailed ? 'p-8' : 'p-4'}`}>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
+              Total Income
+            </p>
+            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
+              ₹{data.totalIncome?.toLocaleString()}
+            </h2>
+            {isDetailed && (
+              <div className="mt-4 flex items-center text-emerald-500 font-bold text-sm">
+                <FiTrendingUp className="mr-1" /> <span>Cash Flow Positive</span>
+              </div>
+            )}
+          </div>
+          <div className={`rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center ${isDetailed ? 'w-16 h-16' : 'w-10 h-10'}`}>
+            <FiTrendingUp size={isDetailed ? 32 : 20} />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. EXPENSES CARD */}
+      <div className={`premium-card transition-all duration-300 border-l-8 border-rose-500 ${isDetailed ? 'p-8' : 'p-4'}`}>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
+              Total Expenses
+            </p>
+            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
+              ₹{data.totalExpenses?.toLocaleString()}
+            </h2>
+            {isDetailed && (
+              <div className="mt-4">
+                <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Activity Indicator</p>
+                <div className="w-full bg-gray-200 dark:bg-[#334155] h-2 rounded-full overflow-hidden">
+                  <div className="bg-rose-500 h-full w-1/2"></div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className={`rounded-2xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center ${isDetailed ? 'w-16 h-16' : 'w-10 h-10'}`}>
+            <FiTrendingDown size={isDetailed ? 32 : 20} />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. UDHARI CARD */}
+      <div className={`premium-card transition-all duration-300 border-l-8 border-amber-500 ${isDetailed ? 'p-8' : 'p-4'}`}>
+        <div className="flex justify-between items-start">
+          <div className="w-full">
+            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
+              Udhari Market
+            </p>
+            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
+              ₹{(data.udhariMetrics?.pendingAmount || 0).toLocaleString()}
+            </h2>
+            {isDetailed && (
+              <div className="mt-4 grid grid-cols-2 gap-4 border-t dark:border-[#334155] pt-4 w-full">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">To Receive</p>
+                  <p className="text-emerald-500 font-bold text-sm">₹{(data.udhariMetrics?.totalReceivable || 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">To Give</p>
+                  <p className="text-rose-500 font-bold text-sm">₹{(data.udhariMetrics?.totalPayable || 0).toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className={`rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-16 h-16' : 'w-10 h-10'}`}>
+            <FiUsers size={isDetailed ? 32 : 20} />
+          </div>
+        </div>
+      </div>
+
+      {/* 4. EMI CARD */}
+      <div className={`premium-card transition-all duration-300 border-l-8 border-indigo-500 ${isDetailed ? 'p-8' : 'p-4'}`}>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
+              Active EMIs
+            </p>
+            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
+              {data.emiMetrics?.totalActive || 0} Loans
+            </h2>
+            {isDetailed && (
+              <div className="mt-4">
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">
+                  Monthly Burden: ₹{(data.emiMetrics?.monthlyBurden || 0).toLocaleString()}
+                </p>
+                <div className="mt-2 text-[10px] bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-lg text-indigo-700 dark:text-indigo-300 font-medium">
+                  Track installments to avoid late fees.
+                </div>
+              </div>
+            )}
+          </div>
+          <div className={`rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-16 h-16' : 'w-10 h-10'}`}>
+            <FiCreditCard size={isDetailed ? 32 : 20} />
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 };
