@@ -37,7 +37,7 @@ router.get('/summary', protect, async (req, res) => {
     ]);
     const totalExpenses = expenseData[0]?.total || 0;
 
-    // 4. FIX: Calculate Udhari Market Metrics (Live calculation from DB)
+    // 4. Calculate Udhari Market Metrics (Live calculation from DB)
     const udhariRecords = await Udhari.find({ user: userId, isSettled: false });
     let totalReceivable = 0;
     let totalPayable = 0;
@@ -49,10 +49,9 @@ router.get('/summary', protect, async (req, res) => {
         totalPayable += record.amount;
       }
     });
-    // Pending Amount = Kitna market mein total fasa hai
     const pendingAmount = totalReceivable + totalPayable; 
 
-    // 5. FIX: Calculate EMI Metrics (Live calculation from DB)
+    // 5. Calculate EMI Metrics (Live calculation from DB)
     let totalActiveEmis = 0;
     let monthlyEmiBurden = 0;
 
@@ -64,36 +63,91 @@ router.get('/summary', protect, async (req, res) => {
       });
     }
 
-    // 6. Dummy Chart Data (Agar aapka charts collection alag hai toh use bhej sakte hain)
-    // Yeh structures aapke AnalyticsCharts.jsx ko crash hone se bachayenge
-    const monthlyTrend = [
-      { month: 'Jan', income: totalIncome * 0.2, expense: totalExpenses * 0.2 },
-      { month: 'Feb', income: totalIncome * 0.3, expense: totalExpenses * 0.4 },
-      { month: 'Current', income: totalIncome, expense: totalExpenses }
-    ];
+    // ========================================================
+    // 6. REAL CHART DATA CALCULATIONS (Fix for broken graphs)
+    // ========================================================
 
-    const expenseByCategory = [
-      { category: 'Food', amount: totalExpenses * 0.4 },
-      { category: 'Rent', amount: totalExpenses * 0.3 },
-      { category: 'Others', amount: totalExpenses * 0.3 }
-    ];
+    // A. Cash Flow Trend (Last 6 Months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0,0,0,0);
 
-    // Response object sending exact structure required by frontend StatCards
+    const incomeTrend = await Income.aggregate([
+      { $match: { user: userId, date: { $gte: sixMonthsAgo } } },
+      { $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
+          total: { $sum: "$amount" }
+      }}
+    ]);
+
+    const expenseTrend = await Expense.aggregate([
+      { $match: { user: userId, date: { $gte: sixMonthsAgo } } },
+      { $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
+          total: { $sum: "$amount" }
+      }}
+    ]);
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthlyTrend = [];
+    
+    // Generate exactly last 6 months array
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = monthNames[d.getMonth()];
+      
+      monthlyTrend.push({
+        monthStr, 
+        name: monthLabel,    // Recharts uses 'name' for X-axis
+        month: monthLabel,   // Fallback key
+        income: 0,
+        expense: 0
+      });
+    }
+
+    // Fill actual data into the array
+    incomeTrend.forEach(item => {
+      const idx = monthlyTrend.findIndex(m => m.monthStr === item._id);
+      if(idx !== -1) monthlyTrend[idx].income = item.total;
+    });
+
+    expenseTrend.forEach(item => {
+      const idx = monthlyTrend.findIndex(m => m.monthStr === item._id);
+      if(idx !== -1) monthlyTrend[idx].expense = item.total;
+    });
+
+    // B. Expense Breakdown (Category wise pie chart)
+    const expenseByCategoryData = await Expense.aggregate([
+      { $match: dateFilter },
+      { $group: {
+          _id: "$category",
+          amount: { $sum: "$amount" }
+      }},
+      { $sort: { amount: -1 } }
+    ]);
+
+    // Format specially for Recharts PieChart (Requires 'name' and 'value')
+    const expenseByCategory = expenseByCategoryData.map(item => ({
+        name: item._id || 'Other',
+        category: item._id || 'Other',
+        value: item.amount,
+        amount: item.amount
+    }));
+
+    // ========================================================
+    // 7. SEND FINAL RESPONSE
+    // ========================================================
     res.json({
       success: true,
       data: {
         cards: {
           totalIncome,
           totalExpenses,
-          udhariMetrics: {
-            pendingAmount,
-            totalReceivable,
-            totalPayable
-          },
-          emiMetrics: {
-            totalActive: totalActiveEmis,
-            monthlyBurden: monthlyEmiBurden
-          }
+          udhariMetrics: { pendingAmount, totalReceivable, totalPayable },
+          emiMetrics: { totalActive: totalActiveEmis, monthlyBurden: monthlyEmiBurden }
         },
         charts: {
           monthlyTrend,
