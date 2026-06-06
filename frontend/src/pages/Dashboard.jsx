@@ -48,8 +48,22 @@ const Dashboard = () => {
     if (!dashboardData) return;
     setIsExporting(true);
     try {
-      // Pass raw data directly to the generator
-      await generateProfessionalReport(dashboardData, user, reportPeriod, reportMode);
+      // 🔥 MAGIC FIX: PDF Crash ko rokne ke liye safe data mapping 🔥
+      // PDF generator undefined data milne par crash ho raha tha.
+      // Hum yahan fallback (|| 0) laga kar bhejenge taaki wo smoothly chale.
+      const safeDataForPDF = {
+        totalIncome: dashboardData?.cards?.totalIncome || 0,
+        totalExpenses: dashboardData?.cards?.totalExpenses || 0,
+        totalExpense: dashboardData?.cards?.totalExpenses || 0,
+        udhariMetrics: dashboardData?.cards?.udhariMetrics || {},
+        emiMetrics: dashboardData?.cards?.emiMetrics || {},
+        cards: dashboardData?.cards || {},
+        charts: dashboardData?.charts || {},
+        ...dashboardData 
+      };
+
+      // Ab PDF Generator ko perfectly formatted data milega
+      await generateProfessionalReport(safeDataForPDF, user, reportPeriod, reportMode);
     } catch (error) {
       console.error("PDF generation failed", error);
       alert('Failed to generate professional report. Please try again.');
@@ -61,7 +75,7 @@ const Dashboard = () => {
   if (loading && !dashboardData) {
     return (
       <div className="flex h-full items-center justify-center">
-        <FiLoader className="animate-spin h-10 w-10 text-primary-500" />
+        <FiLoader className="animate-spin h-10 w-10 text-emerald-500" />
       </div>
     );
   }
@@ -79,7 +93,7 @@ const Dashboard = () => {
             <select 
               value={reportMode}
               onChange={(e) => setReportMode(e.target.value)}
-              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer text-sm font-medium"
+              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
             >
               <option value="compact">Compact Layout</option>
               <option value="detailed">Detailed Layout</option>
@@ -90,7 +104,7 @@ const Dashboard = () => {
             <select 
               value={reportPeriod}
               onChange={(e) => setReportPeriod(e.target.value)}
-              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer text-sm font-medium"
+              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
             >
               <option value="All Time">All Time</option>
               <option value="This Month">This Month</option>
@@ -110,14 +124,12 @@ const Dashboard = () => {
       </div>
 
       <div className="space-y-6">
-        {/* YAHAN REPORT MODE PASS KIYA HAI 👇 */}
         <StatCards summaryData={dashboardData?.cards} reportMode={reportMode} />
-        
         {dashboardData && (
           <div id="analytics-charts-container" className="bg-transparent">
             <AnalyticsCharts 
-              monthlyTrend={dashboardData.charts.monthlyTrend} 
-              expenseByCategory={dashboardData.charts.expenseByCategory} 
+              monthlyTrend={dashboardData.charts?.monthlyTrend} 
+              expenseByCategory={dashboardData.charts?.expenseByCategory} 
             />
           </div>
         )}
