@@ -2,13 +2,17 @@ import React from 'react';
 import { FiTrendingUp, FiTrendingDown, FiUsers, FiCreditCard } from 'react-icons/fi';
 
 const StatCards = ({ summaryData, reportMode }) => {
-  // Agar data nahi aaya (loading state), toh zeroes dikhaye
-  const data = summaryData || {
-    totalIncome: 0,
-    totalExpenses: 0,
-    udhariMetrics: { pendingAmount: 0, totalReceivable: 0, totalPayable: 0 },
-    emiMetrics: { totalActive: 0, monthlyBurden: 0 }
-  };
+  // Agar data nahi aaya (loading state), toh default fallback object
+  const data = summaryData || {};
+
+  // 100% Safe Variables (Backend keys ke mismatches aur undefined ko handle karne ke liye)
+  const totalIncome = data.totalIncome || 0;
+  const totalExpenses = data.totalExpense || data.totalExpenses || 0; // Fix here
+  const pendingUdhari = data.udhariMetrics?.pendingAmount || 0;
+  const totalReceivable = data.udhariMetrics?.totalReceivable || 0;
+  const totalPayable = data.udhariMetrics?.totalPayable || 0;
+  const activeEmis = data.emiMetrics?.totalActive || 0;
+  const emiBurden = data.emiMetrics?.monthlyBurden || 0;
 
   const isDetailed = reportMode === 'detailed';
 
@@ -23,7 +27,7 @@ const StatCards = ({ summaryData, reportMode }) => {
               Total Income
             </p>
             <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
-              ₹{data.totalIncome?.toLocaleString()}
+              ₹{totalIncome.toLocaleString()}
             </h2>
             {isDetailed && (
               <div className="mt-4 flex items-center text-emerald-500 font-bold text-sm">
@@ -37,7 +41,7 @@ const StatCards = ({ summaryData, reportMode }) => {
         </div>
       </div>
 
-      {/* 2. EXPENSES CARD */}
+      {/* 2. EXPENSES CARD (Fixed) */}
       <div className={`premium-card transition-all duration-300 border-l-8 border-rose-500 ${isDetailed ? 'p-8' : 'p-4'}`}>
         <div className="flex justify-between items-start">
           <div>
@@ -45,7 +49,7 @@ const StatCards = ({ summaryData, reportMode }) => {
               Total Expenses
             </p>
             <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
-              ₹{data.totalExpenses?.toLocaleString()}
+              ₹{totalExpenses.toLocaleString()}
             </h2>
             {isDetailed && (
               <div className="mt-4">
@@ -70,17 +74,17 @@ const StatCards = ({ summaryData, reportMode }) => {
               Udhari Market
             </p>
             <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
-              ₹{(data.udhariMetrics?.pendingAmount || 0).toLocaleString()}
+              ₹{pendingUdhari.toLocaleString()}
             </h2>
             {isDetailed && (
               <div className="mt-4 grid grid-cols-2 gap-4 border-t dark:border-[#334155] pt-4 w-full">
                 <div>
                   <p className="text-[10px] text-gray-400 font-bold uppercase">To Receive</p>
-                  <p className="text-emerald-500 font-bold text-sm">₹{(data.udhariMetrics?.totalReceivable || 0).toLocaleString()}</p>
+                  <p className="text-emerald-500 font-bold text-sm">₹{totalReceivable.toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-400 font-bold uppercase">To Give</p>
-                  <p className="text-rose-500 font-bold text-sm">₹{(data.udhariMetrics?.totalPayable || 0).toLocaleString()}</p>
+                  <p className="text-rose-500 font-bold text-sm">₹{totalPayable.toLocaleString()}</p>
                 </div>
               </div>
             )}
@@ -99,12 +103,12 @@ const StatCards = ({ summaryData, reportMode }) => {
               Active EMIs
             </p>
             <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-4xl' : 'text-2xl'}`}>
-              {data.emiMetrics?.totalActive || 0} Loans
+              {activeEmis} Loans
             </h2>
             {isDetailed && (
               <div className="mt-4">
                 <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">
-                  Monthly Burden: ₹{(data.emiMetrics?.monthlyBurden || 0).toLocaleString()}
+                  Monthly Burden: ₹{emiBurden.toLocaleString()}
                 </p>
                 <div className="mt-2 text-[10px] bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-lg text-indigo-700 dark:text-indigo-300 font-medium">
                   Track installments to avoid late fees.
