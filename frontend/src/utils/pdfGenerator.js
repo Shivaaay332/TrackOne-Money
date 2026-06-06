@@ -19,12 +19,6 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   };
 
   const formatCurrency = (val) => Number(val || 0).toLocaleString('en-IN');
-  const formatCompactNum = (val) => {
-    const n = Number(val || 0);
-    if (n >= 100000) return (n / 100000).toFixed(1) + 'L';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-    return n.toString();
-  };
   const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : 'N/A';
 
   let currentY = margin.top;
@@ -42,21 +36,17 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   const addHeader = () => {
     doc.setFillColor(...colors.primary);
     doc.rect(0, 0, pageWidth, 5, 'F'); 
-
     try { doc.addImage(logoImage, 'PNG', margin.left, 8, 10, 10); } catch (e) {}
-    
     doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...colors.primary);
     doc.text("TrackOne", margin.left + 12, 15);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...colors.textDark);
     doc.text("Money", margin.left + 38, 15);
-
     doc.setFontSize(8); doc.setTextColor(...colors.textMuted);
     doc.text("Confidential Financial Report", pageWidth - margin.right, 11, { align: 'right' });
     doc.setFont("helvetica", "bold"); doc.setTextColor(...colors.textDark);
     doc.text(`Period: ${period || 'N/A'}`, pageWidth - margin.right, 15, { align: 'right' });
     doc.setFont("helvetica", "normal"); doc.setFontSize(7);
     doc.text(`Generated for: ${user?.name || 'User'} | Date: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - margin.right, 19, { align: 'right' });
-
     doc.setDrawColor(...colors.border); doc.setLineWidth(0.5);
     doc.line(margin.left, 23, pageWidth - margin.right, 23);
   };
@@ -95,7 +85,6 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     startX += boxWidth + 5;
     if ((index + 1) % 3 === 0) { startX = margin.left; startY += boxHeight + 3; }
   });
-
   currentY = startY + 5;
 
   // --- 2. NATIVE ANALYTICS SECTION ---
@@ -108,7 +97,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   doc.roundedRect(margin.left, currentY, colW, analyticsBoxH, 1, 1, 'S'); 
   doc.roundedRect(margin.left + colW + 5, currentY, colW, analyticsBoxH, 1, 1, 'S'); 
 
-  // --- 2A. NATIVE TREND BAR CHART (WITH AMOUNTS) ---
+  // --- 2A. NATIVE TREND BAR CHART ---
   doc.setFontSize(8); doc.text("Cash Flow Trend (6 Months)", margin.left + 3, currentY + 5);
   
   const trendData = safeData.charts?.monthlyTrend || [];
@@ -129,20 +118,16 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
       
       const incH = (incVal / maxVal) * chartH;
       doc.setFillColor(...colors.success); doc.rect(bx + 2, chartY + chartH - incH, barW, incH, 'F');
-      
-      // 🔥 MAGIC: Print Income Amount on top of the bar 🔥
       if(incVal > 0) {
         doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...colors.success);
-        doc.text(formatCompactNum(incVal), bx + 2 + (barW/2), chartY + chartH - incH - 1, { align: 'center' });
+        doc.text(formatCurrency(incVal), bx + 2 + (barW/2), chartY + chartH - incH - 1, { align: 'center' });
       }
 
       const expH = (expVal / maxVal) * chartH;
       doc.setFillColor(...colors.danger); doc.rect(bx + 2 + barW + 1, chartY + chartH - expH, barW, expH, 'F');
-      
-      // 🔥 MAGIC: Print Expense Amount on top of the bar 🔥
       if(expVal > 0) {
         doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...colors.danger);
-        doc.text(formatCompactNum(expVal), bx + 2 + barW + 1 + (barW/2), chartY + chartH - expH - 1, { align: 'center' });
+        doc.text(formatCurrency(expVal), bx + 2 + barW + 1 + (barW/2), chartY + chartH - expH - 1, { align: 'center' });
       }
 
       doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...colors.textMuted);
@@ -154,8 +139,6 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     doc.text("Income", chartX + 5, chartY + chartH + 8);
     doc.setFillColor(...colors.danger); doc.rect(chartX + 25, chartY + chartH + 6, 2, 2, 'F');
     doc.text("Expense", chartX + 28, chartY + chartH + 8);
-  } else {
-    doc.text("No data available", margin.left + colW/2, currentY + 25, { align: 'center' });
   }
 
   // --- 2B. NATIVE EXPENSE BREAKDOWN ---
@@ -182,28 +165,25 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
       doc.setFillColor(...colors.primary); doc.rect(margin.left + colW + 8, catY, fillW, 2, 'F');
       catY += 6;
     });
-  } else {
-    doc.text("No expenses recorded", margin.left + colW + 5 + colW/2, currentY + 25, { align: 'center' });
   }
 
   currentY += analyticsBoxH + 10;
 
   // ==========================================
-  // 🔥 NEW: 3. DETAILED REPORTS (TABLES) 🔥
+  // 3. DETAILED REPORTS (TABLES)
   // ==========================================
-
   const dLists = safeData.detailedLists || {};
 
   // --- 3A. TRANSACTION LEDGER ---
   const allTxns = [
     ...(Array.isArray(dLists.incomes) ? dLists.incomes.map(t => ({ ...t, type: 'Income' })) : []),
     ...(Array.isArray(dLists.expenses) ? dLists.expenses.map(t => ({ ...t, type: 'Expense' })) : [])
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 10 : 25);
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 15 : 200); // Badha diya limit
 
   if (allTxns.length > 0) {
     checkPageBreak(30); 
     doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
-    doc.text("Recent Transactions", margin.left, currentY);
+    doc.text(`Transaction Ledger (${period})`, margin.left, currentY);
 
     autoTable(doc, {
       theme: 'grid', startY: currentY + 3,
@@ -255,7 +235,35 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     currentY = doc.lastAutoTable.finalY + 10;
   }
 
-  // --- 3C. FINANCIAL GOALS ---
+  // --- 3C. ACTIVE EMI TRACKER (NEW ADDED) ---
+  const allEmis = Array.isArray(dLists.emis) ? dLists.emis : [];
+  if (allEmis.length > 0) {
+    checkPageBreak(30); 
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
+    doc.text("Active EMI & Loan Tracker", margin.left, currentY);
+
+    autoTable(doc, {
+      theme: 'grid', startY: currentY + 3,
+      head: [['Loan Name', 'Lender', 'Next Due Date', 'Status', 'EMI Amount']],
+      body: allEmis.map(e => [
+        e.emiName || e.name || '-', e.lenderName || e.lender || '-', formatDate(e.nextDueDate || e.dueDate),
+        e.status || 'Active', `Rs.${formatCurrency(e.emiAmount || e.amount)}`
+      ]),
+      styles: { fontSize: fontSize, cellPadding: 2.5, lineColor: colors.border, lineWidth: 0.1 },
+      headStyles: { fillColor: colors.bgLight, textColor: colors.textDark, fontStyle: 'bold' },
+      columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } },
+      margin: { left: margin.left, right: margin.right, top: headerHeight },
+      didParseCell: function(data) {
+        if (data.section === 'body' && data.column.index === 3) {
+          data.cell.styles.textColor = data.row.raw[3] === 'Closed' ? colors.success : colors.danger;
+        }
+      },
+      didDrawPage: function () { addHeader(); }
+    });
+    currentY = doc.lastAutoTable.finalY + 10;
+  }
+
+  // --- 3D. FINANCIAL GOALS ---
   const allGoals = Array.isArray(dLists.goals) ? dLists.goals : [];
   if (allGoals.length > 0) {
     checkPageBreak(30); 
@@ -266,12 +274,12 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
       theme: 'grid', startY: currentY + 3,
       head: [['Goal Name', 'Target Amount', 'Saved Amount', 'Deadline', 'Progress (%)']],
       body: allGoals.map(g => {
-        const target = Number(g.target) || 1; const saved = Number(g.saved) || 0;
-        const progress = Math.min((saved / target) * 100, 100).toFixed(1);
-        return [
-          g.name || '-', `Rs.${formatCurrency(target)}`, `Rs.${formatCurrency(saved)}`, 
-          formatDate(g.deadline), `${progress}%`
-        ];
+        const goalName = g.goalName || g.name || g.title || '-';
+        const targetAmt = Number(g.targetAmount || g.target || g.goalAmount) || 1;
+        const savedAmt = Number(g.savedAmount || g.saved || g.currentAmount) || 0;
+        const targetDate = g.targetDate || g.deadline || g.dueDate || null;
+        const progress = Math.min((savedAmt / targetAmt) * 100, 100).toFixed(1);
+        return [goalName, `Rs.${formatCurrency(targetAmt)}`, `Rs.${formatCurrency(savedAmt)}`, formatDate(targetDate), `${progress}%`];
       }),
       styles: { fontSize: fontSize, cellPadding: 2.5, lineColor: colors.border, lineWidth: 0.1 },
       headStyles: { fillColor: colors.bgLight, textColor: colors.textDark, fontStyle: 'bold' },

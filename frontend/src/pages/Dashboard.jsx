@@ -43,24 +43,35 @@ const Dashboard = () => {
     // eslint-disable-next-line
   }, [reportPeriod]);
 
-  // Completely Native PDF Generation 
   const handleExportPDF = async () => {
     if (!dashboardData) return;
     setIsExporting(true);
     try {
-      // 🔥 MAGIC: Background mein saari detailed list fetch karo PDF ke tables ke liye
-      const [expRes, incRes, udhariRes, goalsRes] = await Promise.all([
-        api.get('/expenses').catch(() => ({ data: { data: [] } })),
-        api.get('/income').catch(() => ({ data: { data: [] } })),
+      // Create exact query for the period selected to filter transactions
+      let exportQuery = '';
+      if (reportPeriod === 'This Month') {
+        const start = new Date(); start.setDate(1);
+        const end = new Date(); end.setMonth(end.getMonth() + 1, 0);
+        exportQuery = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
+      } else if (reportPeriod === 'This Year') {
+        const start = new Date(new Date().getFullYear(), 0, 1);
+        const end = new Date(new Date().getFullYear(), 11, 31);
+        exportQuery = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
+      }
+
+      // Fetch ALL sections concurrently (Transactions use Date Filter, Others grab full active lists)
+      const [expRes, incRes, udhariRes, goalsRes, emiRes] = await Promise.all([
+        api.get(`/expenses${exportQuery}`).catch(() => ({ data: { data: [] } })),
+        api.get(`/income${exportQuery}`).catch(() => ({ data: { data: [] } })),
         api.get('/udhari').catch(() => ({ data: { data: [] } })),
-        api.get('/goals').catch(() => ({ data: { data: [] } }))
+        api.get('/goals').catch(() => ({ data: { data: [] } })),
+        api.get('/emi').catch(() => ({ data: { data: [] } }))
       ]);
 
       const safeDataForPDF = {
         ...dashboardData,
         totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
         totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
-        totalExpense: Number(dashboardData?.cards?.totalExpenses) || 0,
         cards: {
           totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
           totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
@@ -75,19 +86,16 @@ const Dashboard = () => {
           }
         },
         charts: {
-          monthlyTrend: (dashboardData?.charts?.monthlyTrend || []).map(m => ({
-            ...m, income: Number(m.income) || 0, expense: Number(m.expense) || 0
-          })),
-          expenseByCategory: (dashboardData?.charts?.expenseByCategory || []).map(c => ({
-            ...c, amount: Number(c.amount) || Number(c.value) || 0, value: Number(c.value) || Number(c.amount) || 0
-          }))
+          monthlyTrend: (dashboardData?.charts?.monthlyTrend || []).map(m => ({ ...m, income: Number(m.income) || 0, expense: Number(m.expense) || 0 })),
+          expenseByCategory: (dashboardData?.charts?.expenseByCategory || []).map(c => ({ ...c, amount: Number(c.amount) || Number(c.value) || 0, value: Number(c.value) || Number(c.amount) || 0 }))
         },
-        // YEH NAYA DATA HAI JO PDF TABLES MEIN DIKHEGA
+        // 🔥 ALL LISTS POPULATED PROPERLY FOR TABLES 🔥
         detailedLists: {
           expenses: expRes.data.data || [],
           incomes: incRes.data.data || [],
           udhari: udhariRes.data.data || [],
-          goals: goalsRes.data.data || []
+          goals: goalsRes.data.data || [],
+          emis: emiRes.data.data || [] // EMI Add kar diya!
         }
       };
 
@@ -95,7 +103,7 @@ const Dashboard = () => {
       
     } catch (error) {
       console.error("PDF generation failed", error);
-      alert('Failed to generate professional report. Please check your internet connection.');
+      alert('Failed to generate professional report. Please try again.');
     } finally {
       setIsExporting(false);
     }
