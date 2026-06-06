@@ -13,19 +13,20 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   const fontSize = isCompact ? 8 : 9;
   
   const colors = {
-    primary: [37, 99, 235],
-    secondary: [20, 184, 166],
-    success: [34, 197, 94],
-    danger: [239, 68, 68],
-    textDark: [30, 41, 59],
-    textMuted: [100, 116, 139],
-    border: [226, 232, 240],
-    bgLight: [248, 250, 252]
+    primary: [37, 99, 235], secondary: [20, 184, 166], success: [34, 197, 94],
+    danger: [239, 68, 68], textDark: [30, 41, 59], textMuted: [100, 116, 139],
+    border: [226, 232, 240], bgLight: [248, 250, 252]
   };
+
+  // 🔥 100% CRASH-PROOF HELPERS 🔥
+  // Yeh helper ensure karega ki data undefined ho, null ho, ya string ho, 
+  // ye hamesha usko Number banakar hi toLocaleString chalayega.
+  const formatCurrency = (val) => Number(val || 0).toLocaleString('en-IN');
+  const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : 'N/A';
 
   let currentY = margin.top;
 
-  // --- SAFE DATA EXTRACTORS ---
+  // --- SAFE DATA EXTRACTION ---
   const safeData = dashboardData || {};
   const safeCards = safeData.cards || {};
   const safeUdhari = safeCards.udhariMetrics || {};
@@ -41,206 +42,145 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     doc.setFillColor(...colors.primary);
     doc.rect(0, 0, pageWidth, 5, 'F'); 
 
-    try {
-      doc.addImage(logoImage, 'PNG', margin.left, 8, 10, 10);
-    } catch (e) {
-      console.warn("Logo not found");
-    }
+    try { doc.addImage(logoImage, 'PNG', margin.left, 8, 10, 10); } catch (e) { /* ignore */ }
     
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(...colors.primary);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...colors.primary);
     doc.text("TrackOne", margin.left + 12, 15);
     
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...colors.textDark);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(...colors.textDark);
     doc.text("Money", margin.left + 38, 15);
 
-    doc.setFontSize(8);
-    doc.setTextColor(...colors.textMuted);
+    doc.setFontSize(8); doc.setTextColor(...colors.textMuted);
     doc.text("Confidential Financial Report", pageWidth - margin.right, 11, { align: 'right' });
     
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...colors.textDark);
-    doc.text(`Period: ${period}`, pageWidth - margin.right, 15, { align: 'right' });
+    doc.setFont("helvetica", "bold"); doc.setTextColor(...colors.textDark);
+    doc.text(`Period: ${period || 'N/A'}`, pageWidth - margin.right, 15, { align: 'right' });
     
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.text(`Generated for: ${user?.name || 'User'} | Date: ${new Date().toLocaleString()}`, pageWidth - margin.right, 19, { align: 'right' });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+    doc.text(`Generated for: ${user?.name || 'User'} | Date: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - margin.right, 19, { align: 'right' });
 
-    doc.setDrawColor(...colors.border);
-    doc.setLineWidth(0.5);
+    doc.setDrawColor(...colors.border); doc.setLineWidth(0.5);
     doc.line(margin.left, 23, pageWidth - margin.right, 23);
   };
 
-  // --- PAGE BREAK CHECKER ---
   const checkPageBreak = (neededHeight) => {
     if (currentY + neededHeight > pageHeight - margin.bottom) {
-      doc.addPage();
-      addHeader();
-      currentY = headerHeight;
+      doc.addPage(); addHeader(); currentY = headerHeight;
     }
   };
 
-  // START REPORT
-  addHeader();
-  currentY = 28;
+  addHeader(); currentY = 28;
 
   // --- 1. EXECUTIVE SUMMARY CARDS ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.textDark);
-  doc.text("Executive Summary", margin.left, currentY);
-  currentY += 4;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
+  doc.text("Executive Summary", margin.left, currentY); currentY += 4;
 
   const kpis = [
-    { label: 'Total Income', value: `Rs. ${totalInc.toLocaleString()}`, color: colors.success },
-    { label: 'Total Expenses', value: `Rs. ${totalExp.toLocaleString()}`, color: colors.danger },
-    { label: 'Net Savings', value: `Rs. ${netSavings.toLocaleString()}`, color: colors.primary },
+    { label: 'Total Income', value: `Rs. ${formatCurrency(totalInc)}`, color: colors.success },
+    { label: 'Total Expenses', value: `Rs. ${formatCurrency(totalExp)}`, color: colors.danger },
+    { label: 'Net Savings', value: `Rs. ${formatCurrency(netSavings)}`, color: colors.primary },
     { label: 'Active EMIs', value: `${Number(safeEmi.totalActive) || 0} Loans`, color: colors.textDark },
-    { label: 'Pending Udhari', value: `Rs. ${(Number(safeUdhari.pendingAmount) || 0).toLocaleString()}`, color: colors.secondary },
-    { label: 'Udhari (Net)', value: `Rs. ${udhariNet.toLocaleString()}`, color: colors.textDark }
+    { label: 'Pending Udhari', value: `Rs. ${formatCurrency(safeUdhari.pendingAmount)}`, color: colors.secondary },
+    { label: 'Udhari (Net)', value: `Rs. ${formatCurrency(udhariNet)}`, color: colors.textDark }
   ];
 
   const boxWidth = (pageWidth - margin.left - margin.right - 10) / 3; 
   const boxHeight = 12;
-  let startX = margin.left;
-  let startY = currentY;
+  let startX = margin.left; let startY = currentY;
 
   kpis.forEach((kpi, index) => {
-    doc.setFillColor(...colors.bgLight);
-    doc.setDrawColor(...colors.border);
+    doc.setFillColor(...colors.bgLight); doc.setDrawColor(...colors.border);
     doc.roundedRect(startX, startY, boxWidth, boxHeight, 1, 1, 'FD');
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6);
-    doc.setTextColor(...colors.textMuted);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6); doc.setTextColor(...colors.textMuted);
     doc.text(kpi.label.toUpperCase(), startX + 3, startY + 4.5);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...kpi.color);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...kpi.color);
     doc.text(kpi.value, startX + 3, startY + 9.5);
 
     startX += boxWidth + 5;
-    if ((index + 1) % 3 === 0) {
-      startX = margin.left;
-      startY += boxHeight + 3;
-    }
+    if ((index + 1) % 3 === 0) { startX = margin.left; startY += boxHeight + 3; }
   });
 
   currentY = startY + 5;
 
   // --- 2. NATIVE ANALYTICS SECTION ---
   checkPageBreak(50);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.textDark);
-  doc.text("Financial Analytics", margin.left, currentY);
-  currentY += 5;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
+  doc.text("Financial Analytics", margin.left, currentY); currentY += 5;
 
-  const analyticsBoxH = 45;
-  const colW = (pageWidth - margin.left - margin.right - 5) / 2;
+  const analyticsBoxH = 45; const colW = (pageWidth - margin.left - margin.right - 5) / 2;
 
-  // Draw Boxes
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...colors.border);
-  doc.roundedRect(margin.left, currentY, colW, analyticsBoxH, 1, 1, 'S'); // Left Box (Trend)
-  doc.roundedRect(margin.left + colW + 5, currentY, colW, analyticsBoxH, 1, 1, 'S'); // Right Box (Categories)
+  doc.setFillColor(255, 255, 255); doc.setDrawColor(...colors.border);
+  doc.roundedRect(margin.left, currentY, colW, analyticsBoxH, 1, 1, 'S'); 
+  doc.roundedRect(margin.left + colW + 5, currentY, colW, analyticsBoxH, 1, 1, 'S'); 
 
   // --- 2A. NATIVE TREND BAR CHART ---
-  doc.setFontSize(8);
-  doc.text("Cash Flow Trend (6 Months)", margin.left + 3, currentY + 5);
+  doc.setFontSize(8); doc.text("Cash Flow Trend (6 Months)", margin.left + 3, currentY + 5);
   
   const trendData = safeData.charts?.monthlyTrend || [];
   if (trendData && trendData.length > 0) {
     let maxVal = Math.max(...trendData.map(d => Math.max(Number(d.income)||0, Number(d.expense)||0))) || 1;
     
-    const chartX = margin.left + 5;
-    const chartY = currentY + 10;
-    const chartW = colW - 10;
-    const chartH = 25;
+    const chartX = margin.left + 5; const chartY = currentY + 10;
+    const chartW = colW - 10; const chartH = 25;
 
-    // Baseline
     doc.setDrawColor(...colors.border);
     doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
 
-    const barAreaW = chartW / trendData.length;
-    const barW = barAreaW * 0.35;
+    const barAreaW = chartW / trendData.length; const barW = barAreaW * 0.35;
 
     trendData.forEach((d, i) => {
       const bx = chartX + (i * barAreaW);
       
       const incH = ((Number(d.income) || 0) / maxVal) * chartH;
-      doc.setFillColor(...colors.success);
-      doc.rect(bx + 2, chartY + chartH - incH, barW, incH, 'F');
+      doc.setFillColor(...colors.success); doc.rect(bx + 2, chartY + chartH - incH, barW, incH, 'F');
 
       const expH = ((Number(d.expense) || 0) / maxVal) * chartH;
-      doc.setFillColor(...colors.danger);
-      doc.rect(bx + 2 + barW + 1, chartY + chartH - expH, barW, expH, 'F');
+      doc.setFillColor(...colors.danger); doc.rect(bx + 2 + barW + 1, chartY + chartH - expH, barW, expH, 'F');
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(6);
-      doc.setTextColor(...colors.textMuted);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...colors.textMuted);
       const shortLabel = (d.label || d.name || d.month || 'M').split(' ')[0]; 
       doc.text(shortLabel, bx + (barAreaW/2), chartY + chartH + 3, { align: 'center' });
     });
 
-    doc.setFillColor(...colors.success);
-    doc.rect(chartX + 2, chartY + chartH + 6, 2, 2, 'F');
+    doc.setFillColor(...colors.success); doc.rect(chartX + 2, chartY + chartH + 6, 2, 2, 'F');
     doc.text("Income", chartX + 5, chartY + chartH + 8);
-    
-    doc.setFillColor(...colors.danger);
-    doc.rect(chartX + 25, chartY + chartH + 6, 2, 2, 'F');
+    doc.setFillColor(...colors.danger); doc.rect(chartX + 25, chartY + chartH + 6, 2, 2, 'F');
     doc.text("Expense", chartX + 28, chartY + chartH + 8);
   } else {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...colors.textMuted);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...colors.textMuted);
     doc.text("No data available", margin.left + colW/2, currentY + 25, { align: 'center' });
   }
 
   // --- 2B. NATIVE EXPENSE BREAKDOWN ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(...colors.textDark);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...colors.textDark);
   doc.text("Top Expense Categories", margin.left + colW + 8, currentY + 5);
 
   const categories = safeData.charts?.expenseByCategory || [];
-  // Ensure we sort and slice safely, assuming categories is an array of objects {name, value}
-  const catEntries = Array.isArray(categories) 
-    ? categories.sort((a,b) => (b.value||0) - (a.value||0)).slice(0, 4)
-    : [];
+  const catEntries = Array.isArray(categories) ? categories.sort((a,b) => (Number(b.value)||0) - (Number(a.value)||0)).slice(0, 4) : [];
   
   if (catEntries.length > 0) {
     const totalExpPie = catEntries.reduce((sum, item) => sum + (Number(item.value)||0), 0) || 1;
-    let catY = currentY + 12;
-    const barW = colW - 16;
+    let catY = currentY + 12; const barW = colW - 16;
     
     catEntries.forEach((item) => {
       const val = Number(item.value) || 0;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7);
-      doc.setTextColor(...colors.textDark);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...colors.textDark);
       doc.text(item.name || 'Other', margin.left + colW + 8, catY);
       
       doc.setFont("helvetica", "normal");
-      doc.text(`Rs. ${val.toLocaleString()}`, margin.left + colW + 5 + colW - 10, catY, { align: 'right' });
+      doc.text(`Rs. ${formatCurrency(val)}`, margin.left + colW + 5 + colW - 10, catY, { align: 'right' });
 
       catY += 2;
-      doc.setFillColor(...colors.bgLight);
-      doc.rect(margin.left + colW + 8, catY, barW, 2, 'F');
+      doc.setFillColor(...colors.bgLight); doc.rect(margin.left + colW + 8, catY, barW, 2, 'F');
       
       const fillW = (val / totalExpPie) * barW;
-      doc.setFillColor(...colors.primary);
-      doc.rect(margin.left + colW + 8, catY, fillW, 2, 'F');
-      
+      doc.setFillColor(...colors.primary); doc.rect(margin.left + colW + 8, catY, fillW, 2, 'F');
       catY += 6;
     });
   } else {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...colors.textMuted);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...colors.textMuted);
     doc.text("No expenses recorded", margin.left + colW + 5 + colW/2, currentY + 25, { align: 'center' });
   }
 
@@ -248,27 +188,24 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
 
   // --- 3. TRANSACTION LEDGER ---
   const allTxns = [
-    ...(safeData.recentTransactions?.incomes?.map(t => ({ ...t, type: 'Income' })) || []),
-    ...(safeData.recentTransactions?.expenses?.map(t => ({ ...t, type: 'Expense' })) || [])
+    ...(Array.isArray(safeData.recentTransactions?.incomes) ? safeData.recentTransactions.incomes.map(t => ({ ...t, type: 'Income' })) : []),
+    ...(Array.isArray(safeData.recentTransactions?.expenses) ? safeData.recentTransactions.expenses.map(t => ({ ...t, type: 'Expense' })) : [])
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 12 : 25);
 
   if (allTxns.length > 0) {
     checkPageBreak(20); 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...colors.textDark);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
     doc.text("Transaction Ledger", margin.left, currentY);
 
     autoTable(doc, {
-      theme: 'grid',
-      startY: currentY + 3,
+      theme: 'grid', startY: currentY + 3,
       head: [['Date', 'Type', 'Category', 'Details', 'Amount']],
       body: allTxns.map(txn => [
-        new Date(txn.date).toLocaleDateString(),
-        txn.type,
+        formatDate(txn.date),
+        txn.type || '-',
         txn.category || txn.name || '-',
         (txn.source || txn.paymentMethod || txn.description || '-').substring(0, 30),
-        txn.type === 'Income' ? `+ Rs.${Number(txn.amount||0).toLocaleString()}` : `- Rs.${Number(txn.amount||0).toLocaleString()}`
+        txn.type === 'Income' ? `+ Rs.${formatCurrency(txn.amount)}` : `- Rs.${formatCurrency(txn.amount)}`
       ]),
       styles: { fontSize: fontSize, cellPadding: 2.5, lineColor: colors.border, lineWidth: 0.1 },
       headStyles: { fillColor: colors.bgLight, textColor: colors.textDark, fontStyle: 'bold' },
@@ -279,22 +216,16 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
           data.cell.styles.textColor = data.row.raw[1] === 'Income' ? colors.success : colors.danger;
         }
       },
-      didDrawPage: function () {
-        addHeader(); 
-      }
+      didDrawPage: function () { addHeader(); }
     });
   }
 
   // --- ADD FOOTERS GLOBALLY ---
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setDrawColor(...colors.border);
-    doc.setLineWidth(0.5);
+    doc.setPage(i); doc.setDrawColor(...colors.border); doc.setLineWidth(0.5);
     doc.line(margin.left, pageHeight - margin.bottom + 5, pageWidth - margin.right, pageHeight - margin.bottom + 5);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...colors.textMuted);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...colors.textMuted);
     doc.text("TrackOne-Money | Professional Finance Intelligence", margin.left, pageHeight - 12);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin.right, pageHeight - 12, { align: 'right' });
   }
