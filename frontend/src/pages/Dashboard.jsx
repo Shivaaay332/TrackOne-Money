@@ -43,21 +43,24 @@ const Dashboard = () => {
     // eslint-disable-next-line
   }, [reportPeriod]);
 
-  // Completely Native PDF Generation (No Screenshots)
+  // Completely Native PDF Generation 
   const handleExportPDF = async () => {
     if (!dashboardData) return;
     setIsExporting(true);
     try {
-      // 🔥 ULTRA-SAFE DATA SANITIZATION 🔥
-      // Yeh PDF Generator ko undefined dega hi nahi, direct 0 bhej dega agar data missing hua
+      // 🔥 MAGIC: Background mein saari detailed list fetch karo PDF ke tables ke liye
+      const [expRes, incRes, udhariRes, goalsRes] = await Promise.all([
+        api.get('/expenses').catch(() => ({ data: { data: [] } })),
+        api.get('/income').catch(() => ({ data: { data: [] } })),
+        api.get('/udhari').catch(() => ({ data: { data: [] } })),
+        api.get('/goals').catch(() => ({ data: { data: [] } }))
+      ]);
+
       const safeDataForPDF = {
         ...dashboardData,
-        // Flat properties (Just in case)
         totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
         totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
         totalExpense: Number(dashboardData?.cards?.totalExpenses) || 0,
-        
-        // Nested Cards properties
         cards: {
           totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
           totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
@@ -71,28 +74,28 @@ const Dashboard = () => {
             monthlyBurden: Number(dashboardData?.cards?.emiMetrics?.monthlyBurden) || 0,
           }
         },
-
-        // Charts properties (Arrays)
         charts: {
           monthlyTrend: (dashboardData?.charts?.monthlyTrend || []).map(m => ({
-            ...m,
-            income: Number(m.income) || 0,
-            expense: Number(m.expense) || 0
+            ...m, income: Number(m.income) || 0, expense: Number(m.expense) || 0
           })),
           expenseByCategory: (dashboardData?.charts?.expenseByCategory || []).map(c => ({
-            ...c,
-            amount: Number(c.amount) || Number(c.value) || 0,
-            value: Number(c.value) || Number(c.amount) || 0
+            ...c, amount: Number(c.amount) || Number(c.value) || 0, value: Number(c.value) || Number(c.amount) || 0
           }))
+        },
+        // YEH NAYA DATA HAI JO PDF TABLES MEIN DIKHEGA
+        detailedLists: {
+          expenses: expRes.data.data || [],
+          incomes: incRes.data.data || [],
+          udhari: udhariRes.data.data || [],
+          goals: goalsRes.data.data || []
         }
       };
 
-      // Pass safe data and empty fallback for user just in case
       await generateProfessionalReport(safeDataForPDF, user || {}, reportPeriod, reportMode);
       
     } catch (error) {
       console.error("PDF generation failed", error);
-      alert('Failed to generate professional report. Please check the console for details.');
+      alert('Failed to generate professional report. Please check your internet connection.');
     } finally {
       setIsExporting(false);
     }
@@ -117,8 +120,7 @@ const Dashboard = () => {
         <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
           <div className="relative w-full sm:w-auto">
             <select 
-              value={reportMode}
-              onChange={(e) => setReportMode(e.target.value)}
+              value={reportMode} onChange={(e) => setReportMode(e.target.value)}
               className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
             >
               <option value="compact">Compact Layout</option>
@@ -128,8 +130,7 @@ const Dashboard = () => {
 
           <div className="relative w-full sm:w-auto">
             <select 
-              value={reportPeriod}
-              onChange={(e) => setReportPeriod(e.target.value)}
+              value={reportPeriod} onChange={(e) => setReportPeriod(e.target.value)}
               className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
             >
               <option value="All Time">All Time</option>
@@ -139,8 +140,7 @@ const Dashboard = () => {
           </div>
 
           <button 
-            onClick={handleExportPDF} 
-            disabled={isExporting}
+            onClick={handleExportPDF} disabled={isExporting}
             className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white py-2.5 px-6 rounded-xl shadow-md transition-all font-semibold disabled:opacity-70 whitespace-nowrap"
           >
             {isExporting ? <FiLoader className="animate-spin h-5 w-5" /> : <FiFileText className="h-5 w-5" />}
