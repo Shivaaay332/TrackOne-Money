@@ -26,19 +26,16 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   const safeData = dashboardData || {};
   const safeCards = safeData.cards || {};
   const safeUdhari = safeCards.udhariMetrics || {};
-  const safeExtra = safeData.extraMetrics || {};
+  const safeEmi = safeCards.emiMetrics || {};
 
   const totalInc = Number(safeCards.totalIncome) || 0;
   const totalExp = Number(safeCards.totalExpenses) || Number(safeCards.totalExpense) || 0;
   const netSavings = totalInc - totalExp;
-  
-  const goalSaved = safeExtra.totalGoalSaved || 0;
-  const goalTarget = safeExtra.totalGoalTarget > 0 ? safeExtra.totalGoalTarget : 1;
-  const goalPercent = Math.min((goalSaved / goalTarget) * 100, 100).toFixed(1);
-  const emiPending = safeExtra.totalEmiPending || 0;
+  const udhariNet = (Number(safeUdhari.totalReceivable) || 0) - (Number(safeUdhari.totalPayable) || 0);
 
   const addHeader = () => {
-    doc.setFillColor(...colors.primary); doc.rect(0, 0, pageWidth, 5, 'F'); 
+    doc.setFillColor(...colors.primary);
+    doc.rect(0, 0, pageWidth, 5, 'F'); 
     try { doc.addImage(logoImage, 'PNG', margin.left, 8, 10, 10); } catch (e) {}
     doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...colors.primary);
     doc.text("TrackOne", margin.left + 12, 15);
@@ -55,7 +52,9 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   };
 
   const checkPageBreak = (neededHeight) => {
-    if (currentY + neededHeight > pageHeight - margin.bottom) { doc.addPage(); addHeader(); currentY = headerHeight; }
+    if (currentY + neededHeight > pageHeight - margin.bottom) {
+      doc.addPage(); addHeader(); currentY = headerHeight;
+    }
   };
 
   addHeader(); currentY = 28;
@@ -64,14 +63,13 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
   doc.text("Executive Summary", margin.left, currentY); currentY += 4;
 
-  // 🔥 ORDER SET AS EXACTLY REQUESTED 🔥
   const kpis = [
-    { label: 'Total Savings', value: `Rs. ${formatCurrency(netSavings)}`, color: colors.primary },
     { label: 'Total Income', value: `Rs. ${formatCurrency(totalInc)}`, color: colors.success },
     { label: 'Total Expenses', value: `Rs. ${formatCurrency(totalExp)}`, color: colors.danger },
-    { label: 'Udhari', value: `Rs. ${formatCurrency(safeUdhari.pendingAmount)}`, color: colors.secondary },
-    { label: 'Future Goals', value: `Rs. ${formatCurrency(goalSaved)} (${goalPercent}%)`, color: colors.textDark },
-    { label: 'EMI Pending', value: `Rs. ${formatCurrency(emiPending)}`, color: colors.danger }
+    { label: 'Net Savings', value: `Rs. ${formatCurrency(netSavings)}`, color: colors.primary },
+    { label: 'Active EMIs', value: `${Number(safeEmi.totalActive) || 0} Loans`, color: colors.textDark },
+    { label: 'Pending Udhari', value: `Rs. ${formatCurrency(safeUdhari.pendingAmount)}`, color: colors.secondary },
+    { label: 'Udhari (Net)', value: `Rs. ${formatCurrency(udhariNet)}`, color: colors.textDark }
   ];
 
   const boxWidth = (pageWidth - margin.left - margin.right - 10) / 3; 
@@ -108,12 +106,15 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     const chartX = margin.left + 5; const chartY = currentY + 10;
     const chartW = colW - 10; const chartH = 25;
 
-    doc.setDrawColor(...colors.border); doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
+    doc.setDrawColor(...colors.border);
+    doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
+
     const barAreaW = chartW / trendData.length; const barW = barAreaW * 0.35;
 
     trendData.forEach((d, i) => {
       const bx = chartX + (i * barAreaW);
-      const incVal = Number(d.income) || 0; const expVal = Number(d.expense) || 0;
+      const incVal = Number(d.income) || 0;
+      const expVal = Number(d.expense) || 0;
       
       const incH = (incVal / maxVal) * chartH;
       doc.setFillColor(...colors.success); doc.rect(bx + 2, chartY + chartH - incH, barW, incH, 'F');
@@ -177,7 +178,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   const allTxns = [
     ...(Array.isArray(dLists.incomes) ? dLists.incomes.map(t => ({ ...t, type: 'Income' })) : []),
     ...(Array.isArray(dLists.expenses) ? dLists.expenses.map(t => ({ ...t, type: 'Expense' })) : [])
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 15 : 200); 
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 15 : 200); // Badha diya limit
 
   if (allTxns.length > 0) {
     checkPageBreak(30); 
@@ -234,7 +235,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     currentY = doc.lastAutoTable.finalY + 10;
   }
 
-  // --- 3C. ACTIVE EMI TRACKER ---
+  // --- 3C. ACTIVE EMI TRACKER (NEW ADDED) ---
   const allEmis = Array.isArray(dLists.emis) ? dLists.emis : [];
   if (allEmis.length > 0) {
     checkPageBreak(30); 

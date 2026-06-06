@@ -9,6 +9,7 @@ const getAssetUrl = (path) => {
   return `${baseUrl}/${path.replace(/\\/g, '/')}`;
 };
 
+// NAYA PROP ADD KIYA HAI: onUpdate
 const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, title }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -48,6 +49,7 @@ const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, t
       setFormData({ amount: '', actionType: 'Paid', date: new Date().toISOString().split('T')[0], note: '' });
       setReceiptFile(null);
       
+      // MAGIC: PEECHE WALI SCREEN KO REFRESH KARO
       if(onUpdate) onUpdate(); 
 
     } catch (error) { alert("Failed to add record"); }
@@ -55,9 +57,10 @@ const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, t
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Permanently delete this record? This will also reverse the main balance and adjust your EMI progress.")) {
+    if (window.confirm("Permanently delete this record? This will also reverse the main balance.")) {
       await api.delete(`/history/${id}`);
       fetchHistory();
+      // MAGIC: PEECHE WALI SCREEN KO REFRESH KARO
       if(onUpdate) onUpdate();
     }
   };
@@ -71,26 +74,15 @@ const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, t
           
           <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-[#334155] bg-gray-50 dark:bg-[#0f172a]">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                <FiClock className="mr-2 text-indigo-500" /> 
-                {moduleType === 'EMI' ? 'EMI Payment Timeline' : 'Detailed Ledger'}
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><FiClock className="mr-2 text-indigo-500" /> Detailed Ledger</h2>
               <p className="text-sm text-gray-500 mt-1">{moduleType}: <span className="font-bold text-indigo-600">{title}</span></p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors dark:text-gray-400"><FiX className="w-6 h-6" /></button>
           </div>
 
           <div className="flex border-b border-gray-200 dark:border-[#334155]">
-            <button onClick={() => setViewMode('list')} className={`flex-1 py-3 text-sm font-bold ${viewMode === 'list' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}>
-              View Records ({logs.length})
-            </button>
-            
-            {/* 🔥 MAGIC: EMI ke liye Add Payment ka button permanently gayab ho jayega 🔥 */}
-            {moduleType !== 'EMI' && (
-              <button onClick={() => setViewMode('add')} className={`flex-1 py-3 text-sm font-bold flex justify-center items-center ${viewMode === 'add' ? 'text-emerald-600 border-b-2 border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}>
-                <FiPlus className="mr-1"/> Add Payment
-              </button>
-            )}
+            <button onClick={() => setViewMode('list')} className={`flex-1 py-3 text-sm font-bold ${viewMode === 'list' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}>View Records ({logs.length})</button>
+            <button onClick={() => setViewMode('add')} className={`flex-1 py-3 text-sm font-bold flex justify-center items-center ${viewMode === 'add' ? 'text-emerald-600 border-b-2 border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-[#0f172a]'}`}><FiPlus className="mr-1"/> Add Payment</button>
           </div>
 
           <div className="p-6 overflow-y-auto flex-1 bg-gray-50 dark:bg-[#0f172a]">
@@ -100,22 +92,14 @@ const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, t
                   <div className="text-center py-10 text-gray-500"><FiFileText className="w-12 h-12 mx-auto mb-3 opacity-30"/> No history records found.</div>
                 ) : (
                   logs.map(log => (
-                    <div key={log._id} className="bg-white dark:bg-[#1e293b] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-[#334155] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-md transition-all">
+                    <div key={log._id} className="bg-white dark:bg-[#1e293b] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-[#334155] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${log.actionType === 'Added' || log.actionType === 'Received' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {moduleType === 'EMI' ? 'Auto-Paid' : log.actionType}
-                          </span>
-                          <span className="font-bold text-gray-800 dark:text-gray-200 text-lg">₹{log.amount.toLocaleString('en-IN')}</span>
+                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${log.actionType === 'Added' || log.actionType === 'Received' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{log.actionType}</span>
+                          <span className="font-bold text-gray-800 dark:text-gray-200 text-lg">₹{log.amount.toLocaleString()}</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-2 font-medium">{new Date(log.date).toDateString()}</p>
-                        
-                        {/* EMI ke auto-generated note ko khoobsurat dikhane ke liye */}
-                        {log.note && (
-                          <div className={`mt-2 text-sm p-2.5 rounded-lg border ${moduleType === 'EMI' ? 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-300 font-medium' : 'bg-gray-50 border-gray-100 text-gray-600 dark:bg-[#0f172a] dark:border-[#1e293b] dark:text-gray-400 italic'}`}>
-                            {moduleType === 'EMI' ? `✨ ${log.note}` : `"${log.note}"`}
-                          </div>
-                        )}
+                        {log.note && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 italic">"{log.note}"</p>}
                       </div>
                       
                       <div className="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-gray-100 dark:border-[#334155] pt-3 md:pt-0">
@@ -132,7 +116,7 @@ const HistoryLedgerModal = ({ isOpen, onClose, onUpdate, moduleType, recordId, t
               </div>
             )}
 
-            {viewMode === 'add' && moduleType !== 'EMI' && (
+            {viewMode === 'add' && (
               <form onSubmit={handleSubmit} className="bg-white dark:bg-[#1e293b] p-6 rounded-xl border border-gray-100 dark:border-[#334155] space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>

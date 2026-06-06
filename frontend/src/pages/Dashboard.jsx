@@ -29,87 +29,93 @@ const Dashboard = () => {
         const end = new Date(new Date().getFullYear(), 11, 31);
         query = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
       }
-
-      const [summaryRes, goalsRes, emiRes, udhariRes] = await Promise.all([
-        api.get(`/dashboard/summary${query}`),
-        api.get('/goals').catch(() => ({ data: { data: [] } })),
-        api.get('/emi').catch(() => ({ data: { data: [] } })),
-        api.get('/udhari').catch(() => ({ data: { data: [] } }))
-      ]);
-
-      const summaryData = summaryRes.data.data;
-      const goals = goalsRes.data.data || [];
-      const emis = emiRes.data.data || [];
-      const udharis = udhariRes.data.data || [];
-
-      let totalGoalTarget = 0; let totalGoalSaved = 0;
-      goals.forEach(g => { totalGoalTarget += Number(g.targetAmount || g.target || g.goalAmount) || 0; totalGoalSaved += Number(g.savedAmount || g.saved || g.currentAmount) || 0; });
-
-      let totalEmiPending = 0;
-      emis.forEach(e => {
-        if(e.status !== 'Closed') {
-            const amt = Number(e.emiAmount || e.amount) || 0;
-            const totalMonths = Number(e.tenureMonths) || 1;
-            const paidMonths = Number(e.paidInstallments) || 0;
-            totalEmiPending += amt * Math.max(0, totalMonths - paidMonths);
-        }
-      });
-
-      setDashboardData({ ...summaryData, extraMetrics: { goals, emis, udharis, totalGoalTarget, totalGoalSaved, totalEmiPending } });
-    } catch (error) { console.error("Failed to fetch dashboard summary", error); } 
-    finally { setLoading(false); }
+      const response = await api.get(`/dashboard/summary${query}`);
+      setDashboardData(response.data.data);
+    } catch (error) {
+      console.error("Failed to fetch dashboard summary", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchDashboardData(); }, [reportPeriod]); // eslint-disable-line
+  useEffect(() => {
+    fetchDashboardData();
+    // eslint-disable-next-line
+  }, [reportPeriod]);
 
   const handleExportPDF = async () => {
     if (!dashboardData) return;
     setIsExporting(true);
     try {
+      // Create exact query for the period selected to filter transactions
       let exportQuery = '';
       if (reportPeriod === 'This Month') {
-        const start = new Date(); start.setDate(1); const end = new Date(); end.setMonth(end.getMonth() + 1, 0);
+        const start = new Date(); start.setDate(1);
+        const end = new Date(); end.setMonth(end.getMonth() + 1, 0);
         exportQuery = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
       } else if (reportPeriod === 'This Year') {
-        const start = new Date(new Date().getFullYear(), 0, 1); const end = new Date(new Date().getFullYear(), 11, 31);
+        const start = new Date(new Date().getFullYear(), 0, 1);
+        const end = new Date(new Date().getFullYear(), 11, 31);
         exportQuery = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
       }
 
-      const [expRes, incRes] = await Promise.all([
+      // Fetch ALL sections concurrently (Transactions use Date Filter, Others grab full active lists)
+      const [expRes, incRes, udhariRes, goalsRes, emiRes] = await Promise.all([
         api.get(`/expenses${exportQuery}`).catch(() => ({ data: { data: [] } })),
-        api.get(`/income${exportQuery}`).catch(() => ({ data: { data: [] } }))
+        api.get(`/income${exportQuery}`).catch(() => ({ data: { data: [] } })),
+        api.get('/udhari').catch(() => ({ data: { data: [] } })),
+        api.get('/goals').catch(() => ({ data: { data: [] } })),
+        api.get('/emi').catch(() => ({ data: { data: [] } }))
       ]);
-
-      const emis = dashboardData.extraMetrics?.emis || [];
-      
-      // 🔥 MAGIC: Fetch exact Date History for ALL EMIs in background 🔥
-      const emisWithHistory = await Promise.all(emis.map(async (emi) => {
-        const histRes = await api.get(`/history/EMI/${emi._id}`).catch(() => ({ data: { data: [] } }));
-        return { ...emi, historyLog: histRes.data?.data || [] };
-      }));
 
       const safeDataForPDF = {
         ...dashboardData,
         totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
         totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
-        cards: dashboardData?.cards || {},
-        charts: dashboardData?.charts || {},
+        cards: {
+          totalIncome: Number(dashboardData?.cards?.totalIncome) || 0,
+          totalExpenses: Number(dashboardData?.cards?.totalExpenses) || 0,
+          udhariMetrics: {
+            pendingAmount: Number(dashboardData?.cards?.udhariMetrics?.pendingAmount) || 0,
+            totalReceivable: Number(dashboardData?.cards?.udhariMetrics?.totalReceivable) || 0,
+            totalPayable: Number(dashboardData?.cards?.udhariMetrics?.totalPayable) || 0,
+          },
+          emiMetrics: {
+            totalActive: Number(dashboardData?.cards?.emiMetrics?.totalActive) || 0,
+            monthlyBurden: Number(dashboardData?.cards?.emiMetrics?.monthlyBurden) || 0,
+          }
+        },
+        charts: {
+          monthlyTrend: (dashboardData?.charts?.monthlyTrend || []).map(m => ({ ...m, income: Number(m.income) || 0, expense: Number(m.expense) || 0 })),
+          expenseByCategory: (dashboardData?.charts?.expenseByCategory || []).map(c => ({ ...c, amount: Number(c.amount) || Number(c.value) || 0, value: Number(c.value) || Number(c.amount) || 0 }))
+        },
+        // 🔥 ALL LISTS POPULATED PROPERLY FOR TABLES 🔥
         detailedLists: {
           expenses: expRes.data.data || [],
           incomes: incRes.data.data || [],
-          udhari: dashboardData.extraMetrics?.udharis || [],
-          goals: dashboardData.extraMetrics?.goals || [],
-          emis: emisWithHistory // Attached EMI history magically!
+          udhari: udhariRes.data.data || [],
+          goals: goalsRes.data.data || [],
+          emis: emiRes.data.data || [] // EMI Add kar diya!
         }
       };
 
       await generateProfessionalReport(safeDataForPDF, user || {}, reportPeriod, reportMode);
       
-    } catch (error) { alert('Failed to generate professional report. Please try again.'); } 
-    finally { setIsExporting(false); }
+    } catch (error) {
+      console.error("PDF generation failed", error);
+      alert('Failed to generate professional report. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  if (loading && !dashboardData) { return <div className="flex h-full items-center justify-center"><FiLoader className="animate-spin h-10 w-10 text-emerald-500" /></div>; }
+  if (loading && !dashboardData) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <FiLoader className="animate-spin h-10 w-10 text-emerald-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-10">
@@ -121,26 +127,49 @@ const Dashboard = () => {
         
         <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
           <div className="relative w-full sm:w-auto">
-            <select value={reportMode} onChange={(e) => setReportMode(e.target.value)} className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium transition-all">
-              <option value="compact">Compact Layout</option><option value="detailed">Detailed Layout</option>
+            <select 
+              value={reportMode} onChange={(e) => setReportMode(e.target.value)}
+              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
+            >
+              <option value="compact">Compact Layout</option>
+              <option value="detailed">Detailed Layout</option>
             </select>
           </div>
+
           <div className="relative w-full sm:w-auto">
-            <select value={reportPeriod} onChange={(e) => setReportPeriod(e.target.value)} className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium transition-all">
-              <option value="All Time">All Time</option><option value="This Month">This Month</option><option value="This Year">This Year</option>
+            <select 
+              value={reportPeriod} onChange={(e) => setReportPeriod(e.target.value)}
+              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
+            >
+              <option value="All Time">All Time</option>
+              <option value="This Month">This Month</option>
+              <option value="This Year">This Year</option>
             </select>
           </div>
-          <button onClick={handleExportPDF} disabled={isExporting} className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white py-2.5 px-6 rounded-xl shadow-md transition-all font-semibold disabled:opacity-70 whitespace-nowrap">
+
+          <button 
+            onClick={handleExportPDF} disabled={isExporting}
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white py-2.5 px-6 rounded-xl shadow-md transition-all font-semibold disabled:opacity-70 whitespace-nowrap"
+          >
             {isExporting ? <FiLoader className="animate-spin h-5 w-5" /> : <FiFileText className="h-5 w-5" />}
             <span>{isExporting ? 'Generating...' : 'Export PDF'}</span>
           </button>
         </div>
       </div>
+
       <div className="space-y-6">
-        <StatCards summaryData={dashboardData} reportMode={reportMode} />
-        {dashboardData && <div id="analytics-charts-container" className="bg-transparent"><AnalyticsCharts dashboardData={dashboardData} reportMode={reportMode} /></div>}
+        <StatCards summaryData={dashboardData?.cards} reportMode={reportMode} />
+        {dashboardData && (
+          <div id="analytics-charts-container" className="bg-transparent">
+            <AnalyticsCharts 
+              monthlyTrend={dashboardData.charts?.monthlyTrend} 
+              expenseByCategory={dashboardData.charts?.expenseByCategory} 
+            />
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
 export default Dashboard;
