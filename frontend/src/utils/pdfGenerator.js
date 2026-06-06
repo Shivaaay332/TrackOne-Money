@@ -25,6 +25,17 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
 
   let currentY = margin.top;
 
+  // --- SAFE DATA EXTRACTORS ---
+  const safeData = dashboardData || {};
+  const safeCards = safeData.cards || {};
+  const safeUdhari = safeCards.udhariMetrics || {};
+  const safeEmi = safeCards.emiMetrics || {};
+
+  const totalInc = Number(safeCards.totalIncome) || 0;
+  const totalExp = Number(safeCards.totalExpenses) || Number(safeCards.totalExpense) || 0;
+  const netSavings = totalInc - totalExp;
+  const udhariNet = (Number(safeUdhari.totalReceivable) || 0) - (Number(safeUdhari.totalPayable) || 0);
+
   // --- REUSABLE HEADER ---
   const addHeader = () => {
     doc.setFillColor(...colors.primary);
@@ -83,12 +94,12 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   currentY += 4;
 
   const kpis = [
-    { label: 'Total Income', value: `Rs. ${dashboardData.cards.totalIncome.toLocaleString()}`, color: colors.success },
-    { label: 'Total Expenses', value: `Rs. ${dashboardData.cards.totalExpense.toLocaleString()}`, color: colors.danger },
-    { label: 'Net Savings', value: `Rs. ${dashboardData.cards.totalSavings.toLocaleString()}`, color: colors.primary },
-    { label: 'Active Goals', value: `${dashboardData.cards.activeGoals}`, color: colors.textDark },
-    { label: 'Goal Progress', value: `${dashboardData.cards.overallGoalCompletionPercentage}%`, color: colors.secondary },
-    { label: 'Udhari (Net)', value: `Rs. ${(dashboardData.cards.totalUdhariGiven - dashboardData.cards.totalUdhariTaken).toLocaleString()}`, color: colors.textDark }
+    { label: 'Total Income', value: `Rs. ${totalInc.toLocaleString()}`, color: colors.success },
+    { label: 'Total Expenses', value: `Rs. ${totalExp.toLocaleString()}`, color: colors.danger },
+    { label: 'Net Savings', value: `Rs. ${netSavings.toLocaleString()}`, color: colors.primary },
+    { label: 'Active EMIs', value: `${Number(safeEmi.totalActive) || 0} Loans`, color: colors.textDark },
+    { label: 'Pending Udhari', value: `Rs. ${(Number(safeUdhari.pendingAmount) || 0).toLocaleString()}`, color: colors.secondary },
+    { label: 'Udhari (Net)', value: `Rs. ${udhariNet.toLocaleString()}`, color: colors.textDark }
   ];
 
   const boxWidth = (pageWidth - margin.left - margin.right - 10) / 3; 
@@ -120,7 +131,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
 
   currentY = startY + 5;
 
-  // --- 2. NATIVE ANALYTICS SECTION (DRAWN IN PDF, NO IMAGES) ---
+  // --- 2. NATIVE ANALYTICS SECTION ---
   checkPageBreak(50);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
@@ -141,9 +152,9 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   doc.setFontSize(8);
   doc.text("Cash Flow Trend (6 Months)", margin.left + 3, currentY + 5);
   
-  const trendData = dashboardData.charts.monthlyTrend;
+  const trendData = safeData.charts?.monthlyTrend || [];
   if (trendData && trendData.length > 0) {
-    let maxVal = Math.max(...trendData.map(d => Math.max(d.income, d.expense))) || 1;
+    let maxVal = Math.max(...trendData.map(d => Math.max(Number(d.income)||0, Number(d.expense)||0))) || 1;
     
     const chartX = margin.left + 5;
     const chartY = currentY + 10;
@@ -160,25 +171,21 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     trendData.forEach((d, i) => {
       const bx = chartX + (i * barAreaW);
       
-      // Income Bar
-      const incH = (d.income / maxVal) * chartH;
+      const incH = ((Number(d.income) || 0) / maxVal) * chartH;
       doc.setFillColor(...colors.success);
       doc.rect(bx + 2, chartY + chartH - incH, barW, incH, 'F');
 
-      // Expense Bar
-      const expH = (d.expense / maxVal) * chartH;
+      const expH = ((Number(d.expense) || 0) / maxVal) * chartH;
       doc.setFillColor(...colors.danger);
       doc.rect(bx + 2 + barW + 1, chartY + chartH - expH, barW, expH, 'F');
 
-      // Month Label
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6);
       doc.setTextColor(...colors.textMuted);
-      const shortLabel = d.label.split(' ')[0]; // e.g., "Jan"
+      const shortLabel = (d.label || d.name || d.month || 'M').split(' ')[0]; 
       doc.text(shortLabel, bx + (barAreaW/2), chartY + chartH + 3, { align: 'center' });
     });
 
-    // Legend
     doc.setFillColor(...colors.success);
     doc.rect(chartX + 2, chartY + chartH + 6, 2, 2, 'F');
     doc.text("Income", chartX + 5, chartY + chartH + 8);
@@ -193,36 +200,38 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     doc.text("No data available", margin.left + colW/2, currentY + 25, { align: 'center' });
   }
 
-  // --- 2B. NATIVE EXPENSE BREAKDOWN (Horizontal Progress Bars) ---
+  // --- 2B. NATIVE EXPENSE BREAKDOWN ---
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...colors.textDark);
   doc.text("Top Expense Categories", margin.left + colW + 8, currentY + 5);
 
-  const categories = dashboardData.charts.expenseByCategory;
-  const catEntries = Object.entries(categories || {}).sort((a,b) => b[1] - a[1]).slice(0, 4);
+  const categories = safeData.charts?.expenseByCategory || [];
+  // Ensure we sort and slice safely, assuming categories is an array of objects {name, value}
+  const catEntries = Array.isArray(categories) 
+    ? categories.sort((a,b) => (b.value||0) - (a.value||0)).slice(0, 4)
+    : [];
   
   if (catEntries.length > 0) {
-    const totalExp = catEntries.reduce((sum, [_, val]) => sum + val, 0) || 1;
+    const totalExpPie = catEntries.reduce((sum, item) => sum + (Number(item.value)||0), 0) || 1;
     let catY = currentY + 12;
     const barW = colW - 16;
     
-    catEntries.forEach(([cat, val]) => {
+    catEntries.forEach((item) => {
+      const val = Number(item.value) || 0;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7);
       doc.setTextColor(...colors.textDark);
-      doc.text(cat, margin.left + colW + 8, catY);
+      doc.text(item.name || 'Other', margin.left + colW + 8, catY);
       
       doc.setFont("helvetica", "normal");
       doc.text(`Rs. ${val.toLocaleString()}`, margin.left + colW + 5 + colW - 10, catY, { align: 'right' });
 
       catY += 2;
-      // Background track
       doc.setFillColor(...colors.bgLight);
       doc.rect(margin.left + colW + 8, catY, barW, 2, 'F');
       
-      // Fill track
-      const fillW = (val / totalExp) * barW;
+      const fillW = (val / totalExpPie) * barW;
       doc.setFillColor(...colors.primary);
       doc.rect(margin.left + colW + 8, catY, fillW, 2, 'F');
       
@@ -237,10 +246,10 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
 
   currentY += analyticsBoxH + 8;
 
-  // --- 3. TRANSACTION LEDGER (AutoTable) ---
+  // --- 3. TRANSACTION LEDGER ---
   const allTxns = [
-    ...(dashboardData.recentTransactions?.incomes?.map(t => ({ ...t, type: 'Income' })) || []),
-    ...(dashboardData.recentTransactions?.expenses?.map(t => ({ ...t, type: 'Expense' })) || [])
+    ...(safeData.recentTransactions?.incomes?.map(t => ({ ...t, type: 'Income' })) || []),
+    ...(safeData.recentTransactions?.expenses?.map(t => ({ ...t, type: 'Expense' })) || [])
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 12 : 25);
 
   if (allTxns.length > 0) {
@@ -257,9 +266,9 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
       body: allTxns.map(txn => [
         new Date(txn.date).toLocaleDateString(),
         txn.type,
-        txn.category,
-        (txn.source || txn.paymentMethod || '-').substring(0, 30),
-        txn.type === 'Income' ? `+ Rs.${txn.amount}` : `- Rs.${txn.amount}`
+        txn.category || txn.name || '-',
+        (txn.source || txn.paymentMethod || txn.description || '-').substring(0, 30),
+        txn.type === 'Income' ? `+ Rs.${Number(txn.amount||0).toLocaleString()}` : `- Rs.${Number(txn.amount||0).toLocaleString()}`
       ]),
       styles: { fontSize: fontSize, cellPadding: 2.5, lineColor: colors.border, lineWidth: 0.1 },
       headStyles: { fillColor: colors.bgLight, textColor: colors.textDark, fontStyle: 'bold' },
