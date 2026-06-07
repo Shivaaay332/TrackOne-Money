@@ -1,175 +1,205 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { FiTrendingUp, FiTrendingDown, FiShield, FiUsers, FiCreditCard, FiTarget } from 'react-icons/fi';
+import { CHART_COLORS, formatINR } from './dashboardTheme';
 
-const StatCards = ({ summaryData, reportMode }) => {
+const StatCards = ({ summaryData, reportPeriod }) => {
   const data = summaryData || {};
   const cards = data.cards || {};
   const extra = data.extraMetrics || {};
 
-  const totalIncome = cards.totalIncome || 0;
-  const totalExpenses = cards.totalExpense || cards.totalExpenses || 0;
-  const netSavings = totalIncome - totalExpenses; 
-  
+  const totalIncome = Number(cards.totalIncome) || 0;
+  const totalExpenses = Number(cards.totalExpense || cards.totalExpenses) || 0;
+  const netSavings = totalIncome - totalExpenses;
+  const incomeCount = cards.incomeCount || 0;
+  const expenseCount = cards.expenseCount || 0;
+
   const udhariMetrics = cards.udhariMetrics || {};
   const pendingUdhari = udhariMetrics.pendingAmount || 0;
   const totalReceivable = udhariMetrics.totalReceivable || 0;
   const totalPayable = udhariMetrics.totalPayable || 0;
-  
+
   const activeEmis = cards.emiMetrics?.totalActive || 0;
   const emiBurden = cards.emiMetrics?.monthlyBurden || 0;
-  
-  const goalSaved = extra.totalGoalSaved || 0;
-  const goalTarget = extra.totalGoalTarget > 0 ? extra.totalGoalTarget : 1;
-  const goalPercent = Math.min((goalSaved / goalTarget) * 100, 100).toFixed(1);
 
+  const goalSaved = extra.totalGoalSaved || 0;
+  const goalTarget = extra.totalGoalTarget || 0;
+  const goalPercent = goalTarget > 0 ? Math.min((goalSaved / goalTarget) * 100, 100).toFixed(1) : '0.0';
   const emiPending = extra.totalEmiPending || 0;
-  const isDetailed = reportMode === 'detailed';
+
+  const savingsRate = totalIncome > 0 ? ((netSavings / totalIncome) * 100).toFixed(1) : '0.0';
+  const expenseRatio = totalIncome > 0 ? ((totalExpenses / totalIncome) * 100).toFixed(1) : '0.0';
+
+  const periodTag =
+    reportPeriod === 'All Time' ? 'All time' : reportPeriod === 'This Year' ? 'This year' : 'This month';
+
+  const cards_config = [
+    {
+      key: 'savings',
+      label: 'Net Savings',
+      value: formatINR(netSavings),
+      color: CHART_COLORS.savings,
+      icon: FiShield,
+      extra: (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400">
+            <span>Savings rate</span>
+            <span className="font-bold text-gray-700 dark:text-gray-200">{savingsRate}%</span>
+          </div>
+          <div className="w-full bg-gray-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full rounded-full"
+              style={{ backgroundColor: CHART_COLORS.savings }}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(Math.max(Number(savingsRate), 0), 100)}%` }}
+              transition={{ duration: 1.2, ease: 'easeOut' }}
+            />
+          </div>
+          <p className="text-[10px] text-gray-400">{periodTag} · Income − Expenses</p>
+        </div>
+      ),
+    },
+    {
+      key: 'income',
+      label: 'Total Income',
+      value: formatINR(totalIncome),
+      color: CHART_COLORS.income,
+      icon: FiTrendingUp,
+      extra: (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            <span className="font-bold text-emerald-600">{incomeCount}</span> income records in{' '}
+            {periodTag.toLowerCase()}
+          </p>
+          {totalIncome > 0 && (
+            <p className="text-[10px] text-gray-400">
+              Avg per entry: {formatINR(Math.round(totalIncome / Math.max(incomeCount, 1)))}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'expenses',
+      label: 'Total Expenses',
+      value: formatINR(totalExpenses),
+      color: CHART_COLORS.expense,
+      icon: FiTrendingDown,
+      extra: (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400">
+            <span>Of total income</span>
+            <span className="font-bold text-rose-500">{expenseRatio}%</span>
+          </div>
+          <div className="w-full bg-gray-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full rounded-full bg-rose-500"
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(Number(expenseRatio), 100)}%` }}
+              transition={{ duration: 1.2, ease: 'easeOut', delay: 0.1 }}
+            />
+          </div>
+          <p className="text-[10px] text-gray-400">
+            {expenseCount} expense {expenseCount === 1 ? 'entry' : 'entries'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'udhari',
+      label: 'Udhari Pending',
+      value: formatINR(pendingUdhari),
+      color: CHART_COLORS.udhari,
+      icon: FiUsers,
+      extra: (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2">
+            <p className="text-[9px] text-gray-500 uppercase font-bold">To Receive</p>
+            <p className="text-sm font-bold text-emerald-600">{formatINR(totalReceivable)}</p>
+          </div>
+          <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2">
+            <p className="text-[9px] text-gray-500 uppercase font-bold">To Give</p>
+            <p className="text-sm font-bold text-rose-500">{formatINR(totalPayable)}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'goals',
+      label: 'Goals Saved',
+      value: formatINR(goalSaved),
+      color: CHART_COLORS.goals,
+      icon: FiTarget,
+      extra: (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400">
+            <span>Target: {formatINR(goalTarget)}</span>
+            <span className="font-bold text-purple-600">{goalPercent}%</span>
+          </div>
+          <div className="w-full bg-gray-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full rounded-full bg-purple-500"
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(Number(goalPercent), 100)}%` }}
+              transition={{ duration: 1.2, ease: 'easeOut', delay: 0.2 }}
+            />
+          </div>
+          <p className="text-[10px] text-gray-400">{(extra.goals || []).length} active goals</p>
+        </div>
+      ),
+    },
+    {
+      key: 'emi',
+      label: 'EMI Pending',
+      value: formatINR(emiPending),
+      color: CHART_COLORS.emi,
+      icon: FiCreditCard,
+      extra: (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            <span className="font-bold text-indigo-600">{activeEmis}</span> active EMIs
+          </p>
+          <p className="text-[10px] text-gray-400">Monthly burden: {formatINR(emiBurden)}</p>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6">
-      
-      {/* 1. TOTAL SAVINGS */}
-      <div className={`premium-card transition-all duration-300 border-l-8 border-blue-500 ${isDetailed ? 'p-6 lg:p-8' : 'p-4'}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
-              Total Savings
-            </p>
-            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-3xl lg:text-4xl' : 'text-2xl'}`}>
-              ₹{netSavings.toLocaleString('en-IN')}
-            </h2>
-            {isDetailed && (
-              <div className="mt-4 flex items-center text-blue-500 font-bold text-sm">
-                <FiShield className="mr-1" /> <span>Safe & Secure</span>
-              </div>
-            )}
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      {cards_config.map(({ key, label, value, color, icon: Icon, extra }, i) => (
+        <motion.div
+          key={key}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: i * 0.08 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+          className="premium-card rounded-xl border border-gray-100 dark:border-slate-700/80 overflow-hidden p-4 sm:p-5 relative"
+          style={{ boxShadow: `0 4px 20px ${color}12` }}
+        >
+          <div
+            className="absolute top-0 left-0 w-full h-1 rounded-t-xl"
+            style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }}
+          />
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] sm:text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide truncate">
+                {label}
+              </p>
+              <h2 className="font-bold text-gray-900 dark:text-white mt-0.5 truncate text-xl sm:text-2xl">{value}</h2>
+              {extra}
+            </div>
+            <motion.div
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              className="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: `${color}20`, color }}
+            >
+              <Icon size={20} />
+            </motion.div>
           </div>
-          <div className={`rounded-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-14 h-14 lg:w-16 lg:h-16' : 'w-10 h-10'}`}>
-            <FiShield size={isDetailed ? 28 : 20} />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. TOTAL INCOME */}
-      <div className={`premium-card transition-all duration-300 border-l-8 border-emerald-500 ${isDetailed ? 'p-6 lg:p-8' : 'p-4'}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
-              Total Income
-            </p>
-            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-3xl lg:text-4xl' : 'text-2xl'}`}>
-              ₹{totalIncome.toLocaleString('en-IN')}
-            </h2>
-            {isDetailed && (
-              <div className="mt-4 flex items-center text-emerald-500 font-bold text-sm">
-                <FiTrendingUp className="mr-1" /> <span>Cash Flow Positive</span>
-              </div>
-            )}
-          </div>
-          <div className={`rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-14 h-14 lg:w-16 lg:h-16' : 'w-10 h-10'}`}>
-            <FiTrendingUp size={isDetailed ? 28 : 20} />
-          </div>
-        </div>
-      </div>
-
-      {/* 3. TOTAL EXPENSES */}
-      <div className={`premium-card transition-all duration-300 border-l-8 border-rose-500 ${isDetailed ? 'p-6 lg:p-8' : 'p-4'}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
-              Total Expenses
-            </p>
-            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-3xl lg:text-4xl' : 'text-2xl'}`}>
-              ₹{totalExpenses.toLocaleString('en-IN')}
-            </h2>
-            {isDetailed && (
-              <div className="mt-4">
-                <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Activity Indicator</p>
-                <div className="w-full bg-gray-200 dark:bg-[#334155] h-2 rounded-full overflow-hidden">
-                  <div className="bg-rose-500 h-full w-1/2"></div>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className={`rounded-2xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-14 h-14 lg:w-16 lg:h-16' : 'w-10 h-10'}`}>
-            <FiTrendingDown size={isDetailed ? 28 : 20} />
-          </div>
-        </div>
-      </div>
-
-      {/* 4. UDHARI */}
-      <div className={`premium-card transition-all duration-300 border-l-8 border-amber-500 ${isDetailed ? 'p-6 lg:p-8' : 'p-4'}`}>
-        <div className="flex justify-between items-start">
-          <div className="w-full">
-            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
-              Udhari
-            </p>
-            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-3xl lg:text-4xl' : 'text-2xl'}`}>
-              ₹{pendingUdhari.toLocaleString('en-IN')}
-            </h2>
-            {isDetailed && (
-              <div className="mt-4 grid grid-cols-2 gap-2 border-t dark:border-[#334155] pt-4 w-full">
-                <div>
-                  <p className="text-[9px] text-gray-400 font-bold uppercase">To Receive</p>
-                  <p className="text-emerald-500 font-bold text-sm">₹{totalReceivable.toLocaleString('en-IN')}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] text-gray-400 font-bold uppercase">To Give</p>
-                  <p className="text-rose-500 font-bold text-sm">₹{totalPayable.toLocaleString('en-IN')}</p>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className={`rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-14 h-14 lg:w-16 lg:h-16' : 'w-10 h-10'}`}>
-            <FiUsers size={isDetailed ? 28 : 20} />
-          </div>
-        </div>
-      </div>
-
-      {/* 5. FUTURE GOALS */}
-      <div className={`premium-card transition-all duration-300 border-l-8 border-purple-500 ${isDetailed ? 'p-6 lg:p-8' : 'p-4'}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
-              Future Goals
-            </p>
-            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-3xl lg:text-4xl' : 'text-2xl'}`}>
-              ₹{goalSaved.toLocaleString('en-IN')}
-            </h2>
-            {isDetailed && (
-              <div className="mt-4 flex items-center text-purple-500 font-bold text-sm">
-                <FiTarget className="mr-1" /> <span>{goalPercent}% Achieved</span>
-              </div>
-            )}
-          </div>
-          <div className={`rounded-2xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-14 h-14 lg:w-16 lg:h-16' : 'w-10 h-10'}`}>
-            <FiTarget size={isDetailed ? 28 : 20} />
-          </div>
-        </div>
-      </div>
-
-      {/* 6. EMI */}
-      <div className={`premium-card transition-all duration-300 border-l-8 border-indigo-500 ${isDetailed ? 'p-6 lg:p-8' : 'p-4'}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className={`font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${isDetailed ? 'text-xs' : 'text-[10px]'}`}>
-              EMI
-            </p>
-            <h2 className={`font-black text-gray-900 dark:text-white mt-1 ${isDetailed ? 'text-3xl lg:text-4xl' : 'text-2xl'}`}>
-              ₹{emiPending.toLocaleString('en-IN')}
-            </h2>
-            {isDetailed && (
-              <div className="mt-4 flex flex-col gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold">
-                <span>Total Amount Pending</span>
-              </div>
-            )}
-          </div>
-          <div className={`rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0 ${isDetailed ? 'w-14 h-14 lg:w-16 lg:h-16' : 'w-10 h-10'}`}>
-            <FiCreditCard size={isDetailed ? 28 : 20} />
-          </div>
-        </div>
-      </div>
-
+        </motion.div>
+      ))}
     </div>
   );
 };

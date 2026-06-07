@@ -1,4 +1,5 @@
 const Expense = require('../models/Expense');
+const { buildDateRange } = require('../utils/dateHelpers');
 
 // @desc    Add new expense record
 // @route   POST /api/v1/expenses
@@ -48,11 +49,8 @@ const getExpenses = async (req, res, next) => {
       query.paymentMethod = paymentMethod;
     }
 
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
+    const dateRange = buildDateRange(startDate, endDate);
+    if (dateRange) query.date = dateRange;
 
     let sortOptions = { date: -1 };
     if (sortBy === 'amount_asc') sortOptions = { amount: 1 };

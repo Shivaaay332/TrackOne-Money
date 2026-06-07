@@ -1,244 +1,438 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar, LabelList
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend, LabelList, ResponsiveContainer,
 } from 'recharts';
-import { FiPieChart, FiTrendingUp, FiTarget, FiCreditCard, FiUsers } from 'react-icons/fi';
+import { FiPieChart, FiTrendingUp, FiTarget, FiCreditCard, FiUsers, FiCalendar } from 'react-icons/fi';
+import { useTheme } from '../../context/ThemeContext';
+import { CHART_COLORS, CATEGORY_COLORS, formatINR, formatCompactINR } from './dashboardTheme';
+import MiniRing from './MiniRing';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+const NO_FOCUS = `.dash-viz * { outline: none !important; -webkit-tap-highlight-color: transparent !important; }`;
 
-const AnalyticsCharts = ({ dashboardData, reportMode }) => {
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
+
+const Section = ({ title, hint, icon: Icon, color, children }) => (
+  <motion.section
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="premium-card rounded-2xl border border-gray-100 dark:border-slate-700/80 p-4 sm:p-5"
+  >
+    <div className="flex items-center gap-2 mb-4">
+      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: color }}>
+        <Icon size={15} />
+      </span>
+      <div>
+        <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">{title}</h3>
+        {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
+      </div>
+    </div>
+    {children}
+  </motion.section>
+);
+
+const AnalyticsCharts = ({ dashboardData, reportPeriod, loading }) => {
+  const { isDarkMode } = useTheme();
   const data = dashboardData || {};
   const charts = data.charts || {};
   const extra = data.extraMetrics || {};
-  const isDetailed = reportMode === 'detailed';
+  const granularity = data.meta?.granularity || 'month';
 
-  const formatCompactNum = (num) => {
-    if (num >= 100000) return `₹${(num / 100000).toFixed(1)}L`;
-    if (num >= 1000) return `₹${(num / 1000).toFixed(1)}k`;
-    return `₹${num}`;
-  };
+  const axis = isDarkMode ? '#94a3b8' : '#64748b';
+  const grid = isDarkMode ? '#334155' : '#e2e8f0';
 
-  const safeTrendData = (charts.monthlyTrend || []).map(item => ({
-    name: item.name || item.month || item.monthStr || 'N/A',
+  /* ── Categories ── */
+  const categories = (charts.expenseByCategory || [])
+    .map((item, i) => ({
+      name: item.name || item.category || 'Other',
+      value: Number(item.value) || Number(item.amount) || 0,
+      color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+    }))
+    .filter((c) => c.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  const totalCat = categories.reduce((s, c) => s + c.value, 0);
+
+  const flowData = (charts.monthlyTrend || []).map((item) => ({
+    name: item.name || item.month || '—',
     income: Number(item.income) || 0,
-    expense: Number(item.expense) || 0
+    expense: Number(item.expense) || 0,
   }));
 
-  const safePieData = (charts.expenseByCategory || [])
-    .map(item => ({
-      name: item.name || item.category || item._id || 'Other',
-      value: Number(item.value) || Number(item.amount) || Number(item.total) || 0
-    })).filter(item => item.value > 0);
+  const showFlowLabels = flowData.length <= 15;
 
-  const udhariMetrics = data.cards?.udhariMetrics || {};
-  const udhariPieData = [
-    { name: 'To Receive', value: Number(udhariMetrics.totalReceivable) || 0 },
-    { name: 'To Give', value: Number(udhariMetrics.totalPayable) || 0 }
-  ].filter(i => i.value > 0);
+  /* ── EMI with payment history ── */
+  const emiDetails = (extra.emiWithHistory || []).map(({ record: e, history }) => {
+    const emiAmt = Number(e.emiAmount) || 0;
+    const tenure = Number(e.tenureMonths) || 1;
+    const paidCount = Number(e.paidInstallments) || 0;
+    const totalPayable = emiAmt * tenure;
+    const paidFromHistory = history
+      .filter((h) => h.actionType === 'Paid')
+      .reduce((s, h) => s + Number(h.amount), 0);
+    const paidAmount = paidFromHistory > 0 ? paidFromHistory : paidCount * emiAmt;
+    const remaining = Math.max(0, totalPayable - paidAmount);
+    const pct = totalPayable > 0 ? (paidAmount / totalPayable) * 100 : 0;
+    const payments = history
+      .filter((h) => h.actionType === 'Paid')
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const goalsData = (extra.goals || []).map(g => ({
-    name: (g.goalName || g.name || g.title || 'Goal').substring(0, 15),
-    target: Number(g.targetAmount || g.target || g.goalAmount) || 0,
-    saved: Number(g.savedAmount || g.saved || g.currentAmount) || 0
-  }));
+    return {
+      id: e._id,
+      name: e.emiName || e.name || 'EMI',
+      emiAmt,
+      tenure,
+      paidCount,
+      remainingCount: Math.max(0, tenure - paidCount),
+      paidAmount,
+      remaining,
+      totalPayable,
+      pct,
+      payments,
+      status: e.status,
+    };
+  });
 
-  const emiData = (extra.emis || [])
-    .filter(e => e.status !== 'Closed')
-    .map(e => {
-      const amt = Number(e.emiAmount || e.amount) || 0;
-      const totalMonths = Number(e.tenureMonths) || 1;
-      const paidMonths = Number(e.paidInstallments) || 0;
-      return {
-        name: (e.emiName || e.name || 'EMI').substring(0, 15),
-        pending: amt * Math.max(0, totalMonths - paidMonths)
-      };
-    }).filter(e => e.pending > 0);
+  /* ── Goals achievement ── */
+  const goalDetails = (extra.goalsWithHistory || extra.goals || []).map((item) => {
+    const g = item.record || item;
+    const history = item.history || [];
+    const target = Number(g.targetAmount) || 0;
+    const saved = Number(g.currentAmount || g.savedAmount) || 0;
+    const pct = target > 0 ? Math.min((saved / target) * 100, 100) : 0;
+    const deposits = history
+      .filter((h) => h.actionType === 'Added')
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-    if (percent < 0.05) return null;
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
+    return {
+      id: g._id,
+      name: g.goalName || g.name || 'Goal',
+      target,
+      saved,
+      remaining: Math.max(0, target - saved),
+      pct,
+      deposits,
+      targetMonth: g.targetMonth,
+      isCompleted: g.isCompleted,
+    };
+  });
 
-  const customTooltip = (value) => [`₹${Number(value).toLocaleString('en-IN')}`, undefined];
+  /* ── Udhari payment progress per person ── */
+  const udhariDetails = (extra.udhariWithHistory || []).map(({ record: u, history }) => {
+    const paidActions = history.filter((h) => h.actionType === 'Received' || h.actionType === 'Paid');
+    const paidAmount = paidActions.reduce((s, h) => s + Number(h.amount), 0);
+    const remaining = Number(u.amount) || 0;
+    const original = paidAmount + remaining;
+    const pct = original > 0 ? (paidAmount / original) * 100 : 0;
+
+    return {
+      id: u._id,
+      name: u.personName || 'Unknown',
+      type: u.type,
+      original,
+      paidAmount,
+      remaining,
+      pct,
+      payments: paidActions.sort((a, b) => new Date(b.date) - new Date(a.date)),
+      isSettled: u.isSettled,
+    };
+  });
+
+  const flowTitle = granularity === 'day' ? 'Roz ka Cash Flow' : 'Cash Flow Trend';
 
   return (
-    <>
-      <style>{`
-        .recharts-wrapper * { outline: none !important; -webkit-tap-highlight-color: transparent !important; }
-        .recharts-surface { outline: none !important; }
-        .recharts-cartesian-grid-horizontal line, .recharts-cartesian-grid-vertical line { stroke: #334155; stroke-opacity: 0.15; }
-      `}</style>
+    <div className="dash-viz space-y-4">
+      <style>{NO_FOCUS}</style>
 
-      <svg width="0" height="0">
-        <defs>
-          <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-          </linearGradient>
-          <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
-            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-          </linearGradient>
-        </defs>
-      </svg>
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div key="sk" className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-40 rounded-2xl bg-gray-100 dark:bg-slate-800 animate-pulse" />
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div key="data" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+            {/* ═══ EXPENSE: har category ka alag ring ═══ */}
+            <Section
+              title="Category Wise Expense"
+              hint={`${categories.length} categories · kul ${formatINR(totalCat)}`}
+              icon={FiPieChart}
+              color={CHART_COLORS.expense}
+            >
+              {categories.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Is period mein koi expense nahi</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {categories.map((cat, i) => {
+                    const pct = totalCat > 0 ? ((cat.value / totalCat) * 100).toFixed(1) : 0;
+                    return (
+                      <motion.div
+                        key={cat.name}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.06 }}
+                        className="flex flex-col items-center text-center p-3 rounded-xl bg-gray-50 dark:bg-slate-800/50"
+                      >
+                        <MiniRing percent={pct} color={cat.color} size={68} stroke={6} />
+                        <p className="text-xs font-bold text-gray-800 dark:text-white mt-2 truncate w-full">{cat.name}</p>
+                        <p className="text-sm font-black mt-0.5" style={{ color: cat.color }}>
+                          {formatINR(cat.value)}
+                        </p>
+                        <p className="text-[10px] text-gray-400">total ka {pct}%</p>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        
-        {/* 1. Cash Flow Trend */}
-        <div className="lg:col-span-2 premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-3xl shadow-lg">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-            <FiTrendingUp className="mr-2 text-blue-500" /> Cash Flow Trend
-          </h3>
-          {safeTrendData.length === 0 ? (
-            <div className="h-[300px] flex items-center justify-center text-gray-400 font-medium">No data available</div>
-          ) : (
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={safeTrendData} margin={{ top: 20, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10}/>
-                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}/>
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} formatter={customTooltip} cursor={{ stroke: '#334155', strokeWidth: 2, strokeDasharray: '4 4' }}/>
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                  
-                  {/* 🔥 dot={{r:4}} ensures 1-month selection is visible as a dot 🔥 */}
-                  <Area type="monotone" name="Income" dataKey="income" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" activeDot={{ r: 6, stroke: 'none' }} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}>
-                    <LabelList dataKey="income" position="top" fill="#10b981" fontSize={10} fontWeight="bold" formatter={(val) => val > 0 ? formatCompactNum(val) : ''} />
-                  </Area>
-                  <Area type="monotone" name="Expense" dataKey="expense" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" activeDot={{ r: 6, stroke: 'none' }} dot={{ r: 4, fill: '#ef4444', strokeWidth: 2, stroke: '#fff' }}>
-                    <LabelList dataKey="expense" position="top" fill="#ef4444" fontSize={10} fontWeight="bold" formatter={(val) => val > 0 ? formatCompactNum(val) : ''} />
-                  </Area>
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+            {/* ═══ FLOW: upar-niche leti hui line + dots ═══ */}
+            <Section title={flowTitle} hint="Hari line = Aaya · Laal line = Gaya · dots par amount" icon={FiTrendingUp} color={CHART_COLORS.income}>
+              {flowData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Koi data nahi</p>
+              ) : (
+                <div className="h-[240px] sm:h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={flowData} margin={{ top: 20, right: 16, left: 0, bottom: 4 }}>
+                      <defs>
+                        <linearGradient id="flowIncome" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="flowExpense" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" stroke={grid} vertical={false} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fill: axis, fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval={granularity === 'day' && flowData.length > 12 ? Math.floor(flowData.length / 8) : 'preserveStartEnd'}
+                      />
+                      <YAxis
+                        tick={{ fill: axis, fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => formatCompactINR(v)}
+                        width={48}
+                      />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                      <Area
+                        type="monotone"
+                        name="Aaya (Income)"
+                        dataKey="income"
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        fill="url(#flowIncome)"
+                        isAnimationActive
+                        animationDuration={1200}
+                        animationEasing="ease-out"
+                        dot={{ r: 4, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                        activeDot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                      >
+                        {showFlowLabels && (
+                          <LabelList
+                            dataKey="income"
+                            position="top"
+                            fill="#059669"
+                            fontSize={9}
+                            fontWeight="bold"
+                            formatter={(v) => (v > 0 ? formatCompactINR(v) : '')}
+                          />
+                        )}
+                      </Area>
+                      <Area
+                        type="monotone"
+                        name="Gaya (Expense)"
+                        dataKey="expense"
+                        stroke="#f43f5e"
+                        strokeWidth={2.5}
+                        fill="url(#flowExpense)"
+                        isAnimationActive
+                        animationDuration={1200}
+                        animationBegin={150}
+                        animationEasing="ease-out"
+                        dot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }}
+                        activeDot={{ r: 6, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }}
+                      >
+                        {showFlowLabels && (
+                          <LabelList
+                            dataKey="expense"
+                            position="bottom"
+                            fill="#e11d48"
+                            fontSize={9}
+                            fontWeight="bold"
+                            formatter={(v) => (v > 0 ? formatCompactINR(v) : '')}
+                          />
+                        )}
+                      </Area>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Section>
 
-        {/* 2. Expense Category */}
-        <div className="premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-3xl shadow-lg flex flex-col">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 flex items-center">
-            <FiPieChart className="mr-2 text-rose-500" /> Expense Breakdown
-          </h3>
-          {safePieData.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 mt-10">No expenses recorded</div>
-          ) : (
-            <div className="flex-1 flex flex-col justify-center relative min-h-[250px]">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={safePieData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" nameKey="name" stroke="none" labelLine={false} label={renderPieLabel}>
-                    {safePieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} formatter={customTooltip}/>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {safePieData.map((entry, index) => (
-                  <div key={index} className="flex items-center text-[11px] font-bold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-[#0f172a] px-2 py-1 rounded-md">
-                    <span className="w-2.5 h-2.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>{entry.name}
+            {/* ═══ EMI: poora payment data, vertical compact ═══ */}
+            {emiDetails.length > 0 && (
+              <Section
+                title="EMI Payment Detail"
+                hint="Kitni pay hui · kitni bachi · kab pay ki"
+                icon={FiCreditCard}
+                color={CHART_COLORS.emi}
+              >
+                <div className="space-y-3">
+                  {emiDetails.map((emi, i) => (
+                    <motion.div
+                      key={emi.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.08 }}
+                      className="rounded-xl border border-gray-100 dark:border-slate-700 p-3 sm:p-4"
+                    >
+                      <div className="flex gap-3 items-start">
+                        <MiniRing percent={emi.pct} color={CHART_COLORS.emi} size={64} stroke={6} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start gap-2">
+                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{emi.name}</p>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 shrink-0">
+                              {emi.status}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 mt-2 text-[10px]">
+                            <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-1.5 text-center">
+                              <p className="text-gray-500">Pay hui</p>
+                              <p className="font-bold text-emerald-600">{formatCompactINR(emi.paidAmount)}</p>
+                              <p className="text-gray-400">{emi.paidCount}/{emi.tenure} EMI</p>
+                            </div>
+                            <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-1.5 text-center">
+                              <p className="text-gray-500">Baaki</p>
+                              <p className="font-bold text-rose-500">{formatCompactINR(emi.remaining)}</p>
+                              <p className="text-gray-400">{emi.remainingCount} EMI</p>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1.5 text-center">
+                              <p className="text-gray-500">Total</p>
+                              <p className="font-bold text-gray-800 dark:text-white">{formatCompactINR(emi.totalPayable)}</p>
+                              <p className="text-gray-400">₹{emi.emiAmt}/mo</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vertical payment timeline */}
+                      {emi.payments.length > 0 && (
+                        <div className="mt-3 pl-3 border-l-2 border-indigo-200 dark:border-indigo-800 space-y-1.5">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                            <FiCalendar size={10} /> Payment History
+                          </p>
+                          {emi.payments.slice(0, 5).map((p) => (
+                            <div key={p._id} className="flex justify-between text-[11px] pl-2">
+                              <span className="text-gray-500">{fmtDate(p.date)}</span>
+                              <span className="font-bold text-emerald-600">{formatINR(p.amount)}</span>
+                            </div>
+                          ))}
+                          {emi.payments.length > 5 && (
+                            <p className="text-[10px] text-gray-400 pl-2">+{emi.payments.length - 5} aur payments</p>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* ═══ GOALS: achievement rings ═══ */}
+              {goalDetails.length > 0 && (
+                <Section title="Goals Achievement" hint="Target ke hisaab se kitna achieve hua" icon={FiTarget} color={CHART_COLORS.goals}>
+                  <div className="space-y-3">
+                    {goalDetails.map((g, i) => (
+                      <motion.div
+                        key={g.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.07 }}
+                        className="flex gap-3 items-center p-2 rounded-xl bg-gray-50 dark:bg-slate-800/40"
+                      >
+                        <MiniRing percent={g.pct} color={CHART_COLORS.goals} size={60} stroke={5} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{g.name}</p>
+                          <p className="text-sm font-black text-purple-600">{formatINR(g.saved)}</p>
+                          <p className="text-[10px] text-gray-400">
+                            target {formatINR(g.target)} · baaki {formatINR(g.remaining)}
+                          </p>
+                          {g.targetMonth && (
+                            <p className="text-[10px] text-gray-400">Deadline: {g.targetMonth}</p>
+                          )}
+                          {g.deposits.length > 0 && (
+                            <p className="text-[10px] text-emerald-600 mt-0.5">
+                              Last add: {fmtDate(g.deposits[0].date)} · {formatINR(g.deposits[0].amount)}
+                            </p>
+                          )}
+                        </div>
+                        {g.isCompleted && (
+                          <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full shrink-0">Done</span>
+                        )}
+                      </motion.div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+                </Section>
+              )}
 
-        {/* 3. Udhari Distribution */}
-        <div className="premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-3xl shadow-lg flex flex-col">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 flex items-center">
-            <FiUsers className="mr-2 text-amber-500" /> Udhari Distribution
-          </h3>
-          {udhariPieData.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 mt-10">No active Udhari</div>
-          ) : (
-            <div className="flex-1 flex flex-col justify-center relative min-h-[250px]">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={udhariPieData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" nameKey="name" stroke="none" labelLine={false} label={renderPieLabel}>
-                    <Cell fill="#10b981" /> 
-                    <Cell fill="#ef4444" /> 
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} formatter={customTooltip}/>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 flex flex-wrap justify-center gap-4">
-                <div className="flex items-center text-[11px] font-bold text-gray-600 dark:text-gray-300 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-md">
-                  <span className="w-2.5 h-2.5 rounded-full mr-1.5 bg-emerald-500"></span>To Receive (Lene)
-                </div>
-                <div className="flex items-center text-[11px] font-bold text-gray-600 dark:text-gray-300 bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 rounded-md">
-                  <span className="w-2.5 h-2.5 rounded-full mr-1.5 bg-rose-500"></span>To Give (Dene)
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Detailed Layout Options */}
-        {isDetailed && (
-          <>
-            <div className="lg:col-span-2 premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-3xl shadow-lg">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-                <FiTarget className="mr-2 text-purple-500" /> Goals Progress
-              </h3>
-              {goalsData.length === 0 ? (
-                <div className="h-[250px] flex items-center justify-center text-gray-400 font-medium">No active goals</div>
-              ) : (
-                <div className="h-[250px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={goalsData} margin={{ top: 20, right: 20, bottom: 5, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10}/>
-                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}/>
-                      <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} formatter={customTooltip}/>
-                      <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                      
-                      <Bar dataKey="saved" name="Saved Amount" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={50}>
-                        <LabelList dataKey="saved" position="top" fill="#10b981" fontSize={10} fontWeight="bold" formatter={(val) => val > 0 ? formatCompactNum(val) : ''} />
-                      </Bar>
-                      <Bar dataKey="target" name="Target Amount" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={50}>
-                        <LabelList dataKey="target" position="top" fill="#3b82f6" fontSize={10} fontWeight="bold" formatter={(val) => val > 0 ? formatCompactNum(val) : ''} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+              {/* ═══ UDHARI: kisne kitna diya total se ═══ */}
+              {udhariDetails.length > 0 && (
+                <Section title="Udhari Payment" hint="Total mein se kitna pay ho chuka" icon={FiUsers} color={CHART_COLORS.udhari}>
+                  <div className="space-y-3">
+                    {udhariDetails.map((u, i) => (
+                      <motion.div
+                        key={u.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.07 }}
+                        className="p-2 rounded-xl bg-gray-50 dark:bg-slate-800/40"
+                      >
+                        <div className="flex gap-3 items-center">
+                          <MiniRing
+                            percent={u.pct}
+                            color={u.type === 'Lene Wale' ? CHART_COLORS.receive : CHART_COLORS.give}
+                            size={60}
+                            stroke={5}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{u.name}</p>
+                            <p className="text-[10px] text-gray-500">{u.type}</p>
+                            <div className="flex gap-2 mt-1 text-[10px]">
+                              <span className="text-emerald-600 font-bold">Diya: {formatINR(u.paidAmount)}</span>
+                              <span className="text-rose-500 font-bold">Baaki: {formatINR(u.remaining)}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400">Total tha: {formatINR(u.original)}</p>
+                          </div>
+                        </div>
+                        {u.payments.length > 0 && (
+                          <div className="mt-2 pl-2 border-l border-amber-200 dark:border-amber-800 space-y-1">
+                            {u.payments.slice(0, 3).map((p) => (
+                              <div key={p._id} className="flex justify-between text-[10px] pl-1">
+                                <span className="text-gray-400">{fmtDate(p.date)}</span>
+                                <span className="font-semibold text-gray-700 dark:text-gray-200">{formatINR(p.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                </Section>
               )}
             </div>
-
-            <div className="lg:col-span-2 premium-card p-4 sm:p-6 bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] rounded-3xl shadow-lg">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-                <FiCreditCard className="mr-2 text-indigo-500" /> EMI Outstanding (Pending Amount)
-              </h3>
-              {emiData.length === 0 ? (
-                <div className="h-[250px] flex items-center justify-center text-gray-400 font-medium">No pending EMIs</div>
-              ) : (
-                <div className="h-[250px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={emiData} margin={{ top: 20, right: 20, bottom: 5, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10}/>
-                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}/>
-                      <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} formatter={customTooltip}/>
-                      <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                      <Bar dataKey="pending" name="Total Pending Amount" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                         <LabelList dataKey="pending" position="top" fill="#ef4444" fontSize={11} fontWeight="bold" formatter={(val) => val > 0 ? formatCompactNum(val) : ''} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </>
+          </motion.div>
         )}
-      </div>
-    </>
+      </AnimatePresence>
+    </div>
   );
 };
 

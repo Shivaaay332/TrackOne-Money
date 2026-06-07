@@ -1,4 +1,5 @@
 const Income = require('../models/Income');
+const { buildDateRange } = require('../utils/dateHelpers');
 
 // @desc    Add new income record
 // @route   POST /api/v1/income
@@ -49,12 +50,8 @@ const getIncomes = async (req, res, next) => {
       query.category = category;
     }
 
-    // Filter by date range
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
+    const dateRange = buildDateRange(startDate, endDate);
+    if (dateRange) query.date = dateRange;
 
     // Sorting configuration
     let sortOptions = { date: -1 };
