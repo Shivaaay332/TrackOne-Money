@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Udhari = require('../models/Udhari');
+const HistoryLog = mongoose.models.HistoryLog || require('../models/HistoryLog'); // 🔥 HISTORY MODEL IMPORT
 
 // @desc    Add new credit or debit record
 // @route   POST /api/v1/udhari
@@ -16,6 +18,17 @@ const addUdhariRecord = async (req, res, next) => {
       date: date || new Date(),
       dueDate,
       description,
+    });
+
+    // 🔥 AUTO-HISTORY: Record Creation 🔥
+    await HistoryLog.create({
+      user: req.user._id,
+      moduleType: 'Udhari',
+      recordId: udhari._id,
+      actionType: type === 'Lene Wale' ? 'Added' : 'Withdrawn',
+      amount: udhari.amount,
+      date: new Date(),
+      note: `Initial Entry: Udhari of ₹${udhari.amount} logged for ${personName}.`
     });
 
     res.status(201).json({ success: true, data: udhari });
@@ -44,10 +57,9 @@ const getUdhariRecords = async (req, res, next) => {
 
     const records = await Udhari.find(query).sort({ dueDate: 1 });
 
-    // Calculate aggregated metrics across all user accounts
     const allRecords = await Udhari.find({ user: req.user._id });
-    let totalReceivable = 0; // Total active 'Lene Wale'
-    let totalPayable = 0;    // Total active 'Dene Wale'
+    let totalReceivable = 0; 
+    let totalPayable = 0;    
     let settledAmount = 0;
     let pendingAmount = 0;
 
@@ -90,6 +102,17 @@ const toggleSettlement = async (req, res, next) => {
 
     udhari.isSettled = !udhari.isSettled;
     await udhari.save();
+
+    // 🔥 AUTO-HISTORY: Record Settlement Status 🔥
+    await HistoryLog.create({
+      user: req.user._id,
+      moduleType: 'Udhari',
+      recordId: udhari._id,
+      actionType: udhari.isSettled ? (udhari.type === 'Lene Wale' ? 'Received' : 'Paid') : 'Added',
+      amount: udhari.amount,
+      date: new Date(),
+      note: udhari.isSettled ? `Marked as SETTLED. Clear of ₹${udhari.amount}.` : `Re-opened and marked as PENDING.`
+    });
 
     res.status(200).json({ success: true, data: udhari });
   } catch (error) {
