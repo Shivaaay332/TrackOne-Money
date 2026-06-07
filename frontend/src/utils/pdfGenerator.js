@@ -26,16 +26,19 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   const safeData = dashboardData || {};
   const safeCards = safeData.cards || {};
   const safeUdhari = safeCards.udhariMetrics || {};
-  const safeEmi = safeCards.emiMetrics || {};
+  const safeExtra = safeData.extraMetrics || {};
 
   const totalInc = Number(safeCards.totalIncome) || 0;
   const totalExp = Number(safeCards.totalExpenses) || Number(safeCards.totalExpense) || 0;
   const netSavings = totalInc - totalExp;
-  const udhariNet = (Number(safeUdhari.totalReceivable) || 0) - (Number(safeUdhari.totalPayable) || 0);
+  
+  const goalSaved = safeExtra.totalGoalSaved || 0;
+  const goalTarget = safeExtra.totalGoalTarget > 0 ? safeExtra.totalGoalTarget : 1;
+  const goalPercent = Math.min((goalSaved / goalTarget) * 100, 100).toFixed(1);
+  const emiPending = safeExtra.totalEmiPending || 0;
 
   const addHeader = () => {
-    doc.setFillColor(...colors.primary);
-    doc.rect(0, 0, pageWidth, 5, 'F'); 
+    doc.setFillColor(...colors.primary); doc.rect(0, 0, pageWidth, 5, 'F'); 
     try { doc.addImage(logoImage, 'PNG', margin.left, 8, 10, 10); } catch (e) {}
     doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...colors.primary);
     doc.text("TrackOne", margin.left + 12, 15);
@@ -52,9 +55,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   };
 
   const checkPageBreak = (neededHeight) => {
-    if (currentY + neededHeight > pageHeight - margin.bottom) {
-      doc.addPage(); addHeader(); currentY = headerHeight;
-    }
+    if (currentY + neededHeight > pageHeight - margin.bottom) { doc.addPage(); addHeader(); currentY = headerHeight; }
   };
 
   addHeader(); currentY = 28;
@@ -64,12 +65,12 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   doc.text("Executive Summary", margin.left, currentY); currentY += 4;
 
   const kpis = [
+    { label: 'Total Savings', value: `Rs. ${formatCurrency(netSavings)}`, color: colors.primary },
     { label: 'Total Income', value: `Rs. ${formatCurrency(totalInc)}`, color: colors.success },
     { label: 'Total Expenses', value: `Rs. ${formatCurrency(totalExp)}`, color: colors.danger },
-    { label: 'Net Savings', value: `Rs. ${formatCurrency(netSavings)}`, color: colors.primary },
-    { label: 'Active EMIs', value: `${Number(safeEmi.totalActive) || 0} Loans`, color: colors.textDark },
-    { label: 'Pending Udhari', value: `Rs. ${formatCurrency(safeUdhari.pendingAmount)}`, color: colors.secondary },
-    { label: 'Udhari (Net)', value: `Rs. ${formatCurrency(udhariNet)}`, color: colors.textDark }
+    { label: 'Udhari', value: `Rs. ${formatCurrency(safeUdhari.pendingAmount)}`, color: colors.secondary },
+    { label: 'Future Goals', value: `Rs. ${formatCurrency(goalSaved)} (${goalPercent}%)`, color: colors.textDark },
+    { label: 'EMI Pending', value: `Rs. ${formatCurrency(emiPending)}`, color: colors.danger }
   ];
 
   const boxWidth = (pageWidth - margin.left - margin.right - 10) / 3; 
@@ -106,15 +107,12 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     const chartX = margin.left + 5; const chartY = currentY + 10;
     const chartW = colW - 10; const chartH = 25;
 
-    doc.setDrawColor(...colors.border);
-    doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
-
+    doc.setDrawColor(...colors.border); doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
     const barAreaW = chartW / trendData.length; const barW = barAreaW * 0.35;
 
     trendData.forEach((d, i) => {
       const bx = chartX + (i * barAreaW);
-      const incVal = Number(d.income) || 0;
-      const expVal = Number(d.expense) || 0;
+      const incVal = Number(d.income) || 0; const expVal = Number(d.expense) || 0;
       
       const incH = (incVal / maxVal) * chartH;
       doc.setFillColor(...colors.success); doc.rect(bx + 2, chartY + chartH - incH, barW, incH, 'F');
@@ -178,7 +176,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   const allTxns = [
     ...(Array.isArray(dLists.incomes) ? dLists.incomes.map(t => ({ ...t, type: 'Income' })) : []),
     ...(Array.isArray(dLists.expenses) ? dLists.expenses.map(t => ({ ...t, type: 'Expense' })) : [])
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 15 : 200); // Badha diya limit
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, isCompact ? 15 : 200); 
 
   if (allTxns.length > 0) {
     checkPageBreak(30); 
@@ -211,7 +209,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
   if (allUdhari.length > 0) {
     checkPageBreak(30); 
     doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
-    doc.text("Udhari Market Ledger", margin.left, currentY);
+    doc.text(`Udhari Market Ledger (${period})`, margin.left, currentY);
 
     autoTable(doc, {
       theme: 'grid', startY: currentY + 3,
@@ -235,7 +233,7 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
     currentY = doc.lastAutoTable.finalY + 10;
   }
 
-  // --- 3C. ACTIVE EMI TRACKER (NEW ADDED) ---
+  // --- 3C. ACTIVE EMI TRACKER ---
   const allEmis = Array.isArray(dLists.emis) ? dLists.emis : [];
   if (allEmis.length > 0) {
     checkPageBreak(30); 
@@ -244,26 +242,59 @@ export const generateProfessionalReport = async (dashboardData, user, period, mo
 
     autoTable(doc, {
       theme: 'grid', startY: currentY + 3,
-      head: [['Loan Name', 'Lender', 'Next Due Date', 'Status', 'EMI Amount']],
-      body: allEmis.map(e => [
-        e.emiName || e.name || '-', e.lenderName || e.lender || '-', formatDate(e.nextDueDate || e.dueDate),
-        e.status || 'Active', `Rs.${formatCurrency(e.emiAmount || e.amount)}`
-      ]),
+      head: [['Loan Name', 'Lender', 'Next Due', 'Progress', 'EMI Amount', 'Pending Amount']],
+      body: allEmis.map(e => {
+        const emiAmt = Number(e.emiAmount || e.amount) || 0;
+        const totalMonths = Number(e.tenureMonths) || 1;
+        const paidMonths = Number(e.paidInstallments) || 0;
+        const pendingAmt = emiAmt * Math.max(0, totalMonths - paidMonths);
+        const progressPercent = Math.min((paidMonths / totalMonths) * 100, 100).toFixed(1);
+
+        return [
+          e.emiName || e.name || '-', e.lenderName || e.lender || '-', formatDate(e.nextDueDate || e.dueDate),
+          `${paidMonths}/${totalMonths} (${progressPercent}%)`, `Rs.${formatCurrency(emiAmt)}/mo`, `Rs.${formatCurrency(pendingAmt)}`
+        ];
+      }),
       styles: { fontSize: fontSize, cellPadding: 2.5, lineColor: colors.border, lineWidth: 0.1 },
       headStyles: { fillColor: colors.bgLight, textColor: colors.textDark, fontStyle: 'bold' },
-      columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } },
+      columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold', textColor: colors.danger } },
       margin: { left: margin.left, right: margin.right, top: headerHeight },
-      didParseCell: function(data) {
-        if (data.section === 'body' && data.column.index === 3) {
-          data.cell.styles.textColor = data.row.raw[3] === 'Closed' ? colors.success : colors.danger;
-        }
-      },
       didDrawPage: function () { addHeader(); }
     });
     currentY = doc.lastAutoTable.finalY + 10;
   }
 
-  // --- 3D. FINANCIAL GOALS ---
+  // --- 3D. EMI PAYMENT TIMELINE (HISTORY) - 🔥 NAYA ADD KIYA HAI 🔥 ---
+  const allEmiHistory = Array.isArray(dLists.emiHistory) ? dLists.emiHistory : [];
+  if (allEmiHistory.length > 0) {
+    allEmiHistory.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort latest first
+    checkPageBreak(30); 
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...colors.textDark);
+    doc.text(`EMI Payment Timeline (${period})`, margin.left, currentY);
+
+    autoTable(doc, {
+      theme: 'grid', startY: currentY + 3,
+      head: [['Payment Date', 'Loan Name', 'Action', 'System Note / Status', 'Amount Paid']],
+      body: allEmiHistory.map(h => [
+        formatDate(h.date),
+        h.emiName || '-',
+        h.actionType || 'Auto-Paid',
+        (h.note || '-').substring(0, 60), // Lamba note dikhane ki jagah
+        `Rs.${formatCurrency(h.amount)}`
+      ]),
+      styles: { fontSize: fontSize, cellPadding: 2.5, lineColor: colors.border, lineWidth: 0.1 },
+      headStyles: { fillColor: colors.bgLight, textColor: colors.textDark, fontStyle: 'bold' },
+      columnStyles: { 
+        3: { fontStyle: 'italic', textColor: colors.textMuted }, // Note ko pyara italic aur grey dikhane ke liye
+        4: { halign: 'right', fontStyle: 'bold', textColor: colors.success } // Amount ko green dikhane ke liye
+      },
+      margin: { left: margin.left, right: margin.right, top: headerHeight },
+      didDrawPage: function () { addHeader(); }
+    });
+    currentY = doc.lastAutoTable.finalY + 10;
+  }
+
+  // --- 3E. FINANCIAL GOALS ---
   const allGoals = Array.isArray(dLists.goals) ? dLists.goals : [];
   if (allGoals.length > 0) {
     checkPageBreak(30); 

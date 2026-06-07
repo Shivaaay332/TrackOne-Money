@@ -3,7 +3,7 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const mongoose = require('mongoose');
 
-// Saare Models ko safely import karein
+// Models
 const Expense = mongoose.models.Expense || require('../models/Expense');
 const Income = mongoose.models.Income || require('../models/Income');
 const Udhari = mongoose.models.Udhari || require('../models/Udhari');
@@ -14,145 +14,114 @@ router.get('/summary', protect, async (req, res) => {
     const userId = req.user._id;
     const { startDate, endDate } = req.query;
 
-    // 1. Date Filter Settings for Income & Expenses
     let dateFilter = { user: userId };
+    
+    // Default to last 6 months for All Time trend
+    let trendStartDate = new Date();
+    trendStartDate.setMonth(trendStartDate.getMonth() - 5);
+    trendStartDate.setDate(1);
+    trendStartDate.setHours(0,0,0,0);
+    let trendEndDate = new Date();
+
+    // 🔥 EXACT FILTER APPLIED TO EVERYTHING 🔥
     if (startDate && endDate) {
       dateFilter.date = {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
       };
+      trendStartDate = new Date(startDate);
+      trendEndDate = new Date(endDate);
     }
 
-    // 2. Calculate Total Income
+    // Calculate Totals
     const incomeData = await Income.aggregate([
       { $match: dateFilter },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const totalIncome = incomeData[0]?.total || 0;
 
-    // 3. Calculate Total Expenses
     const expenseData = await Expense.aggregate([
       { $match: dateFilter },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const totalExpenses = expenseData[0]?.total || 0;
 
-    // 4. Calculate Udhari Market Metrics (Live calculation from DB)
+    // Udhari Metrics (Active Market Status)
     const udhariRecords = await Udhari.find({ user: userId, isSettled: false });
-    let totalReceivable = 0;
-    let totalPayable = 0;
-
+    let totalReceivable = 0; let totalPayable = 0;
     udhariRecords.forEach(record => {
-      if (record.type === 'Lene Wale') {
-        totalReceivable += record.amount;
-      } else if (record.type === 'Dene Wale') {
-        totalPayable += record.amount;
-      }
+      if (record.type === 'Lene Wale') totalReceivable += record.amount;
+      else if (record.type === 'Dene Wale') totalPayable += record.amount;
     });
     const pendingAmount = totalReceivable + totalPayable; 
 
-    // 5. Calculate EMI Metrics (Live calculation from DB)
-    let totalActiveEmis = 0;
-    let monthlyEmiBurden = 0;
-
+    // EMI Metrics
+    let totalActiveEmis = 0; let monthlyEmiBurden = 0;
     if (EMI) {
       const activeEmis = await EMI.find({ user: userId, status: 'Active' });
       totalActiveEmis = activeEmis.length;
-      activeEmis.forEach(emi => {
-        monthlyEmiBurden += emi.emiAmount;
-      });
+      activeEmis.forEach(emi => { monthlyEmiBurden += emi.emiAmount; });
     }
 
-    // ========================================================
-    // 6. REAL CHART DATA CALCULATIONS (Fix for broken graphs)
-    // ========================================================
-
-    // A. Cash Flow Trend (Last 6 Months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    sixMonthsAgo.setHours(0,0,0,0);
-
+    // 🔥 DYNAMIC CASH FLOW TREND BASED ON SELECTED PERIOD 🔥
     const incomeTrend = await Income.aggregate([
-      { $match: { user: userId, date: { $gte: sixMonthsAgo } } },
-      { $group: {
-          _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
-          total: { $sum: "$amount" }
-      }}
+      { $match: { user: userId, date: { $gte: trendStartDate, $lte: trendEndDate } } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$date" } }, total: { $sum: "$amount" } } }
     ]);
 
     const expenseTrend = await Expense.aggregate([
-      { $match: { user: userId, date: { $gte: sixMonthsAgo } } },
-      { $group: {
-          _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
-          total: { $sum: "$amount" }
-      }}
+      { $match: { user: userId, date: { $gte: trendStartDate, $lte: trendEndDate } } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$date" } }, total: { $sum: "$amount" } } }
     ]);
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthlyTrend = [];
     
-    // Generate exactly last 6 months array
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = monthNames[d.getMonth()];
+    let currentMonth = new Date(trendStartDate);
+    currentMonth.setDate(1);
+    currentMonth.setHours(0,0,0,0);
+    
+    let endMonth = new Date(trendEndDate);
+    endMonth.setDate(1);
+    endMonth.setHours(0,0,0,0);
+
+    // Build perfect month array exactly covering the selected period
+    while (currentMonth <= endMonth) {
+      const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = monthNames[currentMonth.getMonth()];
       
       monthlyTrend.push({
-        monthStr, 
-        name: monthLabel,    // Recharts uses 'name' for X-axis
-        month: monthLabel,   // Fallback key
-        income: 0,
-        expense: 0
+        monthStr, name: monthLabel, month: monthLabel, income: 0, expense: 0
       });
+      currentMonth.setMonth(currentMonth.getMonth() + 1);
     }
 
-    // Fill actual data into the array
     incomeTrend.forEach(item => {
       const idx = monthlyTrend.findIndex(m => m.monthStr === item._id);
       if(idx !== -1) monthlyTrend[idx].income = item.total;
     });
-
     expenseTrend.forEach(item => {
       const idx = monthlyTrend.findIndex(m => m.monthStr === item._id);
       if(idx !== -1) monthlyTrend[idx].expense = item.total;
     });
 
-    // B. Expense Breakdown (Category wise pie chart)
+    // Dynamic Expense Category Breakdown
     const expenseByCategoryData = await Expense.aggregate([
       { $match: dateFilter },
-      { $group: {
-          _id: "$category",
-          amount: { $sum: "$amount" }
-      }},
+      { $group: { _id: "$category", amount: { $sum: "$amount" } } },
       { $sort: { amount: -1 } }
     ]);
 
-    // Format specially for Recharts PieChart (Requires 'name' and 'value')
     const expenseByCategory = expenseByCategoryData.map(item => ({
-        name: item._id || 'Other',
-        category: item._id || 'Other',
-        value: item.amount,
-        amount: item.amount
+        name: item._id || 'Other', category: item._id || 'Other',
+        value: item.amount, amount: item.amount
     }));
 
-    // ========================================================
-    // 7. SEND FINAL RESPONSE
-    // ========================================================
     res.json({
       success: true,
       data: {
-        cards: {
-          totalIncome,
-          totalExpenses,
-          udhariMetrics: { pendingAmount, totalReceivable, totalPayable },
-          emiMetrics: { totalActive: totalActiveEmis, monthlyBurden: monthlyEmiBurden }
-        },
-        charts: {
-          monthlyTrend,
-          expenseByCategory
-        }
+        cards: { totalIncome, totalExpenses, udhariMetrics: { pendingAmount, totalReceivable, totalPayable }, emiMetrics: { totalActive: totalActiveEmis, monthlyBurden: monthlyEmiBurden } },
+        charts: { monthlyTrend, expenseByCategory }
       }
     });
 

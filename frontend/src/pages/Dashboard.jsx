@@ -16,21 +16,61 @@ const Dashboard = () => {
   const [reportPeriod, setReportPeriod] = useState('This Month'); 
   const [reportMode, setReportMode] = useState('compact'); 
 
+  // 🔥 MASTER DATE FILTER FUNCTION (Fixes all missing transaction bugs)
+  const getDateFilters = (period) => {
+    if (period === 'All Time') return { query: '', start: null, end: null };
+    
+    const start = new Date();
+    const end = new Date();
+    
+    if (period === 'This Month') {
+      start.setDate(1); start.setHours(0,0,0,0);
+      end.setMonth(end.getMonth() + 1, 0); end.setHours(23,59,59,999);
+    } else if (period === 'This Year') {
+      start.setMonth(0, 1); start.setHours(0,0,0,0);
+      end.setMonth(11, 31); end.setHours(23,59,59,999);
+    }
+    return { query: `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`, start, end };
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      let query = '';
-      if (reportPeriod === 'This Month') {
-        const start = new Date(); start.setDate(1);
-        const end = new Date(); end.setMonth(end.getMonth() + 1, 0);
-        query = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
-      } else if (reportPeriod === 'This Year') {
-        const start = new Date(new Date().getFullYear(), 0, 1);
-        const end = new Date(new Date().getFullYear(), 11, 31);
-        query = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
-      }
-      const response = await api.get(`/dashboard/summary${query}`);
-      setDashboardData(response.data.data);
+      const { query } = getDateFilters(reportPeriod);
+
+      const [summaryRes, goalsRes, emiRes, udhariRes] = await Promise.all([
+        api.get(`/dashboard/summary${query}`),
+        api.get('/goals').catch(() => ({ data: { data: [] } })),
+        api.get('/emi').catch(() => ({ data: { data: [] } })),
+        api.get('/udhari').catch(() => ({ data: { data: [] } }))
+      ]);
+
+      const summaryData = summaryRes.data.data;
+      const goals = goalsRes.data.data || [];
+      const emis = emiRes.data.data || [];
+      const udharis = udhariRes.data.data || [];
+
+      let totalGoalTarget = 0; let totalGoalSaved = 0;
+      goals.forEach(g => {
+        totalGoalTarget += Number(g.targetAmount || g.target || g.goalAmount) || 0;
+        totalGoalSaved += Number(g.savedAmount || g.saved || g.currentAmount) || 0;
+      });
+
+      let totalEmiPending = 0;
+      emis.forEach(e => {
+        if(e.status !== 'Closed') {
+            const amt = Number(e.emiAmount || e.amount) || 0;
+            const totalMonths = Number(e.tenureMonths) || 1;
+            const paidMonths = Number(e.paidInstallments) || 0;
+            totalEmiPending += amt * Math.max(0, totalMonths - paidMonths);
+        }
+      });
+
+      setDashboardData({
+        ...summaryData,
+        extraMetrics: { goals, emis, udharis, totalGoalTarget, totalGoalSaved, totalEmiPending }
+      });
+
     } catch (error) {
       console.error("Failed to fetch dashboard summary", error);
     } finally {
@@ -47,26 +87,28 @@ const Dashboard = () => {
     if (!dashboardData) return;
     setIsExporting(true);
     try {
-      // Create exact query for the period selected to filter transactions
-      let exportQuery = '';
-      if (reportPeriod === 'This Month') {
-        const start = new Date(); start.setDate(1);
-        const end = new Date(); end.setMonth(end.getMonth() + 1, 0);
-        exportQuery = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
-      } else if (reportPeriod === 'This Year') {
-        const start = new Date(new Date().getFullYear(), 0, 1);
-        const end = new Date(new Date().getFullYear(), 11, 31);
-        exportQuery = `?startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
-      }
+      const { query: exportQuery, start: startFilter, end: endFilter } = getDateFilters(reportPeriod);
 
-      // Fetch ALL sections concurrently (Transactions use Date Filter, Others grab full active lists)
-      const [expRes, incRes, udhariRes, goalsRes, emiRes] = await Promise.all([
+      const [expRes, incRes] = await Promise.all([
         api.get(`/expenses${exportQuery}`).catch(() => ({ data: { data: [] } })),
-        api.get(`/income${exportQuery}`).catch(() => ({ data: { data: [] } })),
-        api.get('/udhari').catch(() => ({ data: { data: [] } })),
-        api.get('/goals').catch(() => ({ data: { data: [] } })),
-        api.get('/emi').catch(() => ({ data: { data: [] } }))
+        api.get(`/income${exportQuery}`).catch(() => ({ data: { data: [] } }))
       ]);
+
+      const emis = dashboardData.extraMetrics?.emis || [];
+      const emiHistoryPromises = emis.map(emi => api.get(`/history/EMI/${emi._id}`).catch(() => ({ data: { data: [] } })));
+      const emiHistoryResponses = await Promise.all(emiHistoryPromises);
+      
+      let allEmiHistory = [];
+      emiHistoryResponses.forEach((res, index) => {
+        const logs = res.data.data || [];
+        const emiName = emis[index].emiName || emis[index].name || 'EMI';
+        logs.forEach(log => {
+           const logDate = new Date(log.date);
+           let isValid = true;
+           if (startFilter && endFilter) isValid = logDate >= startFilter && logDate <= endFilter;
+           if (isValid) allEmiHistory.push({ ...log, emiName });
+        });
+      });
 
       const safeDataForPDF = {
         ...dashboardData,
@@ -89,13 +131,13 @@ const Dashboard = () => {
           monthlyTrend: (dashboardData?.charts?.monthlyTrend || []).map(m => ({ ...m, income: Number(m.income) || 0, expense: Number(m.expense) || 0 })),
           expenseByCategory: (dashboardData?.charts?.expenseByCategory || []).map(c => ({ ...c, amount: Number(c.amount) || Number(c.value) || 0, value: Number(c.value) || Number(c.amount) || 0 }))
         },
-        // 🔥 ALL LISTS POPULATED PROPERLY FOR TABLES 🔥
         detailedLists: {
           expenses: expRes.data.data || [],
           incomes: incRes.data.data || [],
-          udhari: udhariRes.data.data || [],
-          goals: goalsRes.data.data || [],
-          emis: emiRes.data.data || [] // EMI Add kar diya!
+          udhari: dashboardData.extraMetrics?.udharis || [],
+          goals: dashboardData.extraMetrics?.goals || [],
+          emis: emis,
+          emiHistory: allEmiHistory
         }
       };
 
@@ -129,7 +171,7 @@ const Dashboard = () => {
           <div className="relative w-full sm:w-auto">
             <select 
               value={reportMode} onChange={(e) => setReportMode(e.target.value)}
-              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
+              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium transition-all"
             >
               <option value="compact">Compact Layout</option>
               <option value="detailed">Detailed Layout</option>
@@ -139,7 +181,7 @@ const Dashboard = () => {
           <div className="relative w-full sm:w-auto">
             <select 
               value={reportPeriod} onChange={(e) => setReportPeriod(e.target.value)}
-              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium"
+              className="w-full appearance-none bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-[#334155] text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer text-sm font-medium transition-all"
             >
               <option value="All Time">All Time</option>
               <option value="This Month">This Month</option>
@@ -158,13 +200,10 @@ const Dashboard = () => {
       </div>
 
       <div className="space-y-6">
-        <StatCards summaryData={dashboardData?.cards} reportMode={reportMode} />
+        <StatCards summaryData={dashboardData} reportMode={reportMode} />
         {dashboardData && (
           <div id="analytics-charts-container" className="bg-transparent">
-            <AnalyticsCharts 
-              monthlyTrend={dashboardData.charts?.monthlyTrend} 
-              expenseByCategory={dashboardData.charts?.expenseByCategory} 
-            />
+            <AnalyticsCharts dashboardData={dashboardData} reportMode={reportMode} />
           </div>
         )}
       </div>
