@@ -21,7 +21,8 @@ const updateProfile = async (req, res, next) => {
     user.email = req.body.email || user.email;
 
     if (req.file) {
-      user.profilePhoto = req.file.path;
+      // Store as base64 data URL directly in MongoDB — never lost on server restart
+      user.profilePhoto = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     }
 
     if (req.body.password) {

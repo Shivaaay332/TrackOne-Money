@@ -11,10 +11,10 @@ import { useNetwork } from '../../context/NetworkContext';
 import { logout } from '../../store/authSlice';
 import api from '../../services/api';
 
-const getAssetUrl = (path) => {
-  if (!path) return '';
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:3001';
-  return `${baseUrl}/${path.replace(/\\/g, '/')}`;
+const getProfilePhotoUrl = (photo) => {
+  if (!photo) return '';
+  if (photo.startsWith('data:')) return photo; // base64 data URL — use directly
+  return `/${photo.replace(/\\/g, '/')}`; // legacy file path
 };
 
 const notifIcon = (type) => {
@@ -224,7 +224,7 @@ const Navbar = () => {
         <div className="flex items-center space-x-2 md:space-x-3 border-l pl-2 md:pl-4 dark:border-[#334155]">
           <div className="h-7 w-7 md:h-10 md:w-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs md:text-sm font-bold shadow-sm md:shadow-md overflow-hidden border border-white dark:border-[#334155]">
             {user?.profilePhoto ? (
-              <img src={getAssetUrl(user.profilePhoto)} alt="Profile" className="h-full w-full object-cover" />
+              <img src={getProfilePhotoUrl(user.profilePhoto)} alt="Profile" className="h-full w-full object-cover" />
             ) : (
               user?.name?.charAt(0).toUpperCase() || 'U'
             )}

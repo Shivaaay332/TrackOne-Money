@@ -7,10 +7,10 @@ import api from '../services/api';
 import { useNetwork } from '../context/NetworkContext';
 import { clearQueue } from '../utils/db';
 
-const getAssetUrl = (path) => {
-  if (!path) return '';
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:5000';
-  return `${baseUrl}/${path.replace(/\\/g, '/')}`;
+const getProfilePhotoUrl = (photo) => {
+  if (!photo) return '';
+  if (photo.startsWith('data:')) return photo; // base64 data URL — use directly
+  return `/${photo.replace(/\\/g, '/')}`; // legacy file path
 };
 
 const Settings = () => {
@@ -183,7 +183,7 @@ const Settings = () => {
                   {profilePhoto ? (
                     <img src={URL.createObjectURL(profilePhoto)} alt="Avatar" className="h-full w-full object-cover" />
                   ) : user?.profilePhoto ? (
-                    <img src={getAssetUrl(user.profilePhoto)} alt="Avatar" className="h-full w-full object-cover" />
+                    <img src={getProfilePhotoUrl(user.profilePhoto)} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
                     user?.name?.charAt(0).toUpperCase() || 'U'
                   )}
