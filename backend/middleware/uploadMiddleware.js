@@ -1,22 +1,11 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+// 1. Disk Storage hata kar Memory Storage use kar rahe hain
+// Isse req.file.buffer mil jayega jise hum base64 me convert kar sakte hain
+const storage = multer.memoryStorage();
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename(req, file, cb) {
-    cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`);
-  },
-});
-
+// 2. File validation logic (Tumhara original code, jo bilkul sahi hai)
 function checkFileType(file, cb) {
   const filetypes = /jpg|jpeg|png|pdf/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -25,12 +14,14 @@ function checkFileType(file, cb) {
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb('Images and PDFs only!');
+    // Error object return karna better practice hai
+    cb(new Error('Images and PDFs only!'), false); 
   }
 }
 
+// 3. Upload configuration
 const upload = multer({
-  storage,
+  storage: storage,
   limits: { fileSize: 5000000 }, // 5MB limit
   fileFilter: function (req, file, cb) {
     checkFileType(file, cb);
