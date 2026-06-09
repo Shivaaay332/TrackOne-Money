@@ -25,6 +25,7 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const aiRoutes = require('./routes/aiRoutes');   // TrackOne AI Module
 const emiRoutes = require('./routes/emiRoutes'); // EMI Tracker Module
 const historyRoutes = require('./routes/historyRoutes'); // History Ledger Module
+const notificationRoutes = require('./routes/notificationRoutes'); // Notifications Module
 
 // Load Env
 dotenv.config();
@@ -58,7 +59,8 @@ app.use('/api/v1/settings', settingsRoutes);
 // Mount New Features
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/emi', emiRoutes);
-app.use('/api/v1/history', historyRoutes); // YAHAN AAYEGA HISTORY ROUTE
+app.use('/api/v1/history', historyRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // Base Route
 app.get('/', (req, res) => {

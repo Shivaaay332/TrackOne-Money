@@ -27,17 +27,8 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         icons: [
-          {
-            src: '/icons.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/icons.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          }
+          { src: '/icons.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
         ]
       }
     })
@@ -46,6 +37,18 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/uploads': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   build: {
     chunkSizeWarningLimit: 2000

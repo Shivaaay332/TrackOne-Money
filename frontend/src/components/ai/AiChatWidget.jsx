@@ -95,11 +95,8 @@ const AiChatWidget = () => {
     if (voiceError) addMessage('ai', `🎤 Microphone error: ${voiceError}`);
   }, [voiceError, addMessage]);
 
-  // YEH MAGIC LINE HAI JO WIDGET KO BAAKI PAGES SE HATA DEGI
-  // Agar URL '/ai-assistant' nahi hai, toh yeh component kuch bhi render nahi karega.
-  if (location.pathname !== '/ai-assistant') {
-    return null;
-  }
+  // Chat is now embedded directly in AiDashboard, so widget is disabled everywhere
+  return null;
 
   return (
     <>
